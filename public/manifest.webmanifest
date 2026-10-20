@@ -1,13 +1,25 @@
 {
+  "id": "/ai-world-game/app",
   "name": "AIゲーム",
   "short_name": "AIゲーム",
-  "start_url": "./",
-  "scope": "./",
+  "start_url": "/ai-world-game/",
+  "scope": "/ai-world-game/",
   "display": "standalone",
+  "orientation": "portrait",
   "background_color": "#1e2952",
   "theme_color": "#1e2952",
   "icons": [
-    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" }
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
   ]
 }
