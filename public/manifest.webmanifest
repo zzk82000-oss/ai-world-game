@@ -1,9 +1,9 @@
 {
-  "id": "/ai-world-game/app",
+  "id": "/ai-world-game/app/",
   "name": "AIゲーム",
   "short_name": "AIゲーム",
-  "start_url": "/ai-world-game/",
-  "scope": "/ai-world-game/",
+  "start_url": "/ai-world-game/app/",
+  "scope": "/ai-world-game/app/",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#1e2952",
