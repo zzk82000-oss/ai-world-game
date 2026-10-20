@@ -186,3 +186,53 @@ body {
 .menu ul { list-style: none; margin: 0; padding: 0; }
 .menu li { padding: 12px 0; border-bottom: 1px solid var(--line); }
 .menu .note { color: var(--muted); font-size: 0.8rem; }
+
+.status .wide { grid-column: 1 / -1; }
+.notice {
+  margin: 0;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  color: #b3261e;
+  background: color-mix(in srgb, #b3261e 10%, transparent);
+}
+
+.menu { overflow-y: auto; }
+.menu-item, .link-btn {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  width: 100%;
+}
+.link-btn { color: var(--accent); width: auto; padding: 8px 0; }
+.editor h2 { font-size: 1rem; margin: 4px 0 8px; }
+.editor h3 { font-size: 0.9rem; margin: 16px 0 4px; }
+.editor .row { display: flex; gap: 6px; margin: 6px 0; }
+.editor input {
+  min-width: 0;
+  flex: 1;
+  font: inherit;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 6px 8px;
+}
+.editor button:not(.link-btn) {
+  flex: none;
+  font: inherit;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 6px 10px;
+}
+.editor .field { display: block; font-size: 0.85rem; color: var(--muted); }
+.item-list { list-style: none; margin: 0; padding: 0; }
+.item-list li { display: flex; gap: 6px; align-items: center; padding: 4px 0; border: 0; }
+.item-list .item-name { flex: 2; min-width: 0; overflow-wrap: anywhere; }
+.item-list input { flex: 1; max-width: 80px; }
+.error { color: #b3261e; font-size: 0.85rem; }
