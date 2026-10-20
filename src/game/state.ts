@@ -24,6 +24,14 @@ export type GameState = {
   ledger: LedgerEntry[]; // 所持金の変更履歴
 };
 
+// 返答ごとに持たせる、その時点のステータス表示用の状態(履歴は含めない)
+export type StatusSnapshot = Omit<GameState, 'ledger'>;
+
+export function statusOf(state: GameState): StatusSnapshot {
+  const { ledger: _ledger, ...rest } = state;
+  return rest;
+}
+
 export type Change =
   | { type: 'pay'; amount: number; reason?: string }
   | { type: 'receive'; amount: number; reason?: string }

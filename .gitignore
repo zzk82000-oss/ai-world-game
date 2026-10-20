@@ -4,3 +4,7 @@ dist
 # バックアップ・セーブデータは公開リポジトリに入れない
 *.json.bak
 *.tsbuildinfo
+
+# バックアップ・セーブデータは公開リポジトリに入れない
+ai-game-backup-*.json
+*.backup.json

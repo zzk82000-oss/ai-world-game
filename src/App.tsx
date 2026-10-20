@@ -1,14 +1,15 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { DataEditor } from './DataEditor';
-import { applyChanges, createState, type GameState } from './game/state';
+import { applyChanges, statusOf, type StatusSnapshot } from './game/state';
 import { mockReplies } from './mockReplies';
 import { RichText } from './RichText';
-import type { Message } from './types';
+import { SaveManager } from './SaveManager';
+import { useGameSave } from './useGameSave';
 import './App.css';
 
 const INPUT_MAX_HEIGHT_ROWS = 6;
 
-function StatusPanel({ state }: { state: GameState }) {
+function StatusPanel({ state }: { state: StatusSnapshot }) {
   const items = state.items.map((i) => (i.quantity === undefined ? i.name : `${i.name}×${i.quantity}`));
   const facilities = state.facilities.map((f) => `${f.name}(${{ ordered: '発注中', delivered: '納品済み', installed: '設置済み' }[f.status]})`);
   return (
@@ -42,32 +43,15 @@ function StatusPanel({ state }: { state: GameState }) {
   );
 }
 
-const initialState = createState({
-  money: 1000,
-  items: [{ name: 'スマホ' }, { name: '水', quantity: 2 }],
-  place: '工房',
-  datetime: '1日目 朝',
-});
-
 export default function App() {
-  const [gameState, setGameState] = useState<GameState>(initialState);
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: 0,
-      role: 'ai',
-      blocks: [
-        { type: 'narration', text: 'これは画面の見た目と、所持金・所持品の計算を確かめるための仮の会話です。AIにはまだつながっていません。' },
-        { type: 'speech', speaker: 'セラ', text: '*行動*は、送信すると薄い灰色で表示されます。' },
-      ],
-      state: initialState,
-    },
-  ]);
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState('');
+  const {
+    ready, status, notice, setNotice, saves, activeId,
+    gameState, setGameState, messages, setMessages, draft, setDraft,
+    switchTo, exportBackup, importBackup,
+  } = useGameSave();
+  const [view, setView] = useState<'main' | 'editor' | 'saves'>('main');
   const [menuOpen, setMenuOpen] = useState(false);
   const [atBottom, setAtBottom] = useState(true);
-  const nextId = useRef(1);
-  const replyIndex = useRef(0);
   const logRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -100,10 +84,10 @@ export default function App() {
 
   const send = () => {
     if (!draft.trim()) return;
-    const reply = mockReplies[replyIndex.current % mockReplies.length];
-    replyIndex.current += 1;
-    const playerId = nextId.current++;
-    const aiId = nextId.current++;
+    // 返答の番号は、これまでの送信数から決める(保存して開き直しても続きから進む)
+    const sent = messages.filter((m) => m.role === 'player').length;
+    const reply = mockReplies[sent % mockReplies.length];
+    const playerId = Math.max(0, ...messages.map((m) => m.id)) + 1;
     // AIの変更案を検証して反映する。成立しないときは、状態を変えずに理由を表示する
     const result = applyChanges(gameState, reply.changes);
     const next = result.ok ? result.state : gameState;
@@ -112,10 +96,10 @@ export default function App() {
       ...prev,
       { id: playerId, role: 'player', text: draft },
       {
-        id: aiId,
+        id: playerId + 1,
         role: 'ai',
         blocks: reply.blocks,
-        state: next,
+        state: statusOf(next),
         notice: result.ok ? undefined : `状態の変更は反映されませんでした: ${result.error}`,
       },
     ]);
@@ -123,14 +107,35 @@ export default function App() {
     setAtBottom(true);
   };
 
+  const closeMenu = () => {
+    setMenuOpen(false);
+    setView('main');
+  };
+
+  if (!ready) {
+    return (
+      <div className="app">
+        <p className="loading">読み込み中…</p>
+      </div>
+    );
+  }
+
   return (
     <div className="app">
       <header className="header">
-        <h1>AIゲーム</h1>
+        <h1>
+          AIゲーム <small className={`save-status ${status}`}>{{ saved: '保存済み', saving: '保存中…', error: '保存できません', unavailable: '保存なし' }[status]}</small>
+        </h1>
         <button className="icon-btn" aria-label="メニュー" onClick={() => setMenuOpen(true)}>
           ☰
         </button>
       </header>
+
+      {notice && (
+        <p className="notice banner" onClick={() => setNotice('')}>
+          {notice}(タップで閉じる)
+        </p>
+      )}
 
       <div className="log" ref={logRef} onScroll={onScroll}>
         {messages.map((m) =>
@@ -187,31 +192,41 @@ export default function App() {
         </button>
       </div>
 
-      {menuOpen && <div className="backdrop" onClick={() => setMenuOpen(false)} />}
+      {menuOpen && <div className="backdrop" onClick={closeMenu} />}
       <aside className={`menu ${menuOpen ? 'open' : ''}`} aria-hidden={!menuOpen}>
-        <button
-          className="icon-btn close"
-          aria-label="閉じる"
-          onClick={() => {
-            setMenuOpen(false);
-            setEditing(false);
-          }}
-        >
+        <button className="icon-btn close" aria-label="閉じる" onClick={closeMenu}>
           ×
         </button>
-        {editing ? (
-          <DataEditor state={gameState} onChange={setGameState} onBack={() => setEditing(false)} />
+        {view === 'editor' ? (
+          <DataEditor state={gameState} onChange={setGameState} onBack={() => setView('main')} />
+        ) : view === 'saves' ? (
+          <SaveManager
+            saves={saves}
+            activeId={activeId}
+            onOpen={async (id) => {
+              const r = await switchTo(id);
+              if (r.ok) closeMenu();
+              return r;
+            }}
+            onExport={exportBackup}
+            onImport={importBackup}
+            onBack={() => setView('main')}
+          />
         ) : (
           <>
             <ul>
               <li>
-                <button className="menu-item" onClick={() => setEditing(true)}>
+                <button className="menu-item" onClick={() => setView('editor')}>
                   ゲームデータの編集
+                </button>
+              </li>
+              <li>
+                <button className="menu-item" onClick={() => setView('saves')}>
+                  セーブとバックアップ
                 </button>
               </li>
               <li>NPC(仮)</li>
               <li>ログ検索(仮)</li>
-              <li>セーブ(仮)</li>
               <li>設定(仮)</li>
             </ul>
             <p className="note">「(仮)」の項目は、まだ中身がありません。</p>
