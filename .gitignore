@@ -1,0 +1,6 @@
+node_modules
+dist
+*.local
+# バックアップ・セーブデータは公開リポジトリに入れない
+*.json.bak
+*.tsbuildinfo
