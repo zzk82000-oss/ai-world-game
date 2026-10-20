@@ -1,6 +1,6 @@
 // 自分のサイトのファイルのみ、通信できれば最新を取得し、できないときだけ保存済みを使う。
 // 変更が反映されないときは CACHE の名前を上げる。
-const CACHE = 'aigame-shell-v2';
+const CACHE = 'aigame-shell-v3';
 
 self.addEventListener('install', () => self.skipWaiting());
 
