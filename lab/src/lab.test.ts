@@ -257,6 +257,24 @@ describe('送信先の制限', () => {
   });
 });
 
+describe('本文が空だった失敗の記録', () => {
+  it('本文が空でも、終了理由と使用量(推論の内訳)を記録し、課金された可能性のある費用も計上する', async () => {
+    const body = { choices: [{ message: { content: null, reasoning: '考え中…' }, finish_reason: 'length' }], usage: { prompt_tokens: 1200, completion_tokens: 1000, completion_tokens_details: { reasoning_tokens: 1000 } } };
+    const r = await runOne(aion, sc('A'), { repeat: 1, keyFor: () => 'k'.repeat(20), verifiedEndpoints: VERIFIED, fetchImpl: (async () => new Response(JSON.stringify(body), { status: 200 })) as unknown as typeof fetch });
+    expect(r.status).toBe('error');
+    expect(r.error).toContain('本文が空でした');
+    expect(r.error).toContain('終了理由: length');
+    expect(r.error).toContain('うち推論1000');
+    expect(r.usage).toEqual({ inputTokens: 1200, outputTokens: 1000, reasoningTokens: 1000, source: 'api' });
+    expect(r.costJpy).toBeCloseTo(((1200 * 0.7 + 1000 * 1.4) / 1e6) * 160);
+  });
+
+  it('使用量が返らない空の返答は、費用を0として「使用量は返ってこなかった」と記録する', async () => {
+    const r = await runOne(aion, sc('A'), { repeat: 1, keyFor: () => 'k'.repeat(20), verifiedEndpoints: VERIFIED, fetchImpl: (async () => new Response(JSON.stringify({ choices: [{ message: { content: '' } }] }), { status: 200 })) as unknown as typeof fetch });
+    expect(r.error).toContain('使用量: 返ってこなかった');
+  });
+});
+
 describe('生成設定の記録', () => {
   it('非対応の設定は送らず、未確認の設定は注記して送る。指定値と送った値を分けて記録する', async () => {
     const m: ModelInfo = { ...aion, params: { temperature: '非対応', max_tokens: '未確認' } };

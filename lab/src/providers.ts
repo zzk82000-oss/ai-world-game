@@ -119,16 +119,26 @@ export async function callModel(model: ModelInfo, messages: ChatMessage[], sentP
       return { status: 'error', output: '', error: '返答をJSONとして読めませんでした', latencyMs: elapsed(), usage: noUsage(), endpoint: ep.url };
     }
     const content = data.choices?.[0]?.message?.content;
-    if (typeof content !== 'string' || !content.trim()) {
-      return { status: 'error', output: '', error: '返答の本文が空でした', latencyMs: elapsed(), usage: noUsage(), endpoint: ep.url };
-    }
-    const output = redact(content, secrets);
     const u = data.usage;
     const real = typeof u?.prompt_tokens === 'number' && typeof u?.completion_tokens === 'number';
     const reasoning = u?.completion_tokens_details?.reasoning_tokens;
-    const usage: Usage = real
+    const apiUsage: Usage | undefined = real
       ? { inputTokens: u!.prompt_tokens as number, outputTokens: u!.completion_tokens as number, source: 'api', ...(typeof reasoning === 'number' ? { reasoningTokens: reasoning } : {}) }
-      : { inputTokens: estimateInputTokens(messages), outputTokens: estimateTokens(output), source: 'estimate' };
+      : undefined;
+    if (typeof content !== 'string' || !content.trim()) {
+      // 本文が空でも、APIが使用量を返していれば記録する(失敗でも課金されている可能性があるため)。診断のため、終了理由なども書き残す
+      const msg = data.choices?.[0]?.message as Record<string, unknown> | undefined;
+      const reasoningLen = ['reasoning', 'reasoning_content'].map((k) => (typeof msg?.[k] === 'string' ? (msg[k] as string).length : 0)).reduce((a, b) => Math.max(a, b), 0);
+      const detail = [
+        `終了理由: ${data.choices?.[0]?.finish_reason ?? '不明'}`,
+        apiUsage ? `使用量: 入力${apiUsage.inputTokens}・出力${apiUsage.outputTokens}${apiUsage.reasoningTokens !== undefined ? `(うち推論${apiUsage.reasoningTokens})` : ''}` : '使用量: 返ってこなかった',
+        `本文: ${content === null ? 'null' : typeof content === 'string' ? '空' : '(なし)'}`,
+        reasoningLen ? `推論の文章が別の欄に${reasoningLen}文字あった` : '',
+      ].filter(Boolean).join(' / ');
+      return { status: 'error', output: '', error: `返答の本文が空でした(${detail})`, latencyMs: elapsed(), usage: apiUsage ?? noUsage(), endpoint: ep.url };
+    }
+    const output = redact(content, secrets);
+    const usage: Usage = apiUsage ?? { inputTokens: estimateInputTokens(messages), outputTokens: estimateTokens(output), source: 'estimate' };
     return {
       status: 'success',
       output,
