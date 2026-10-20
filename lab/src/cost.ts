@@ -1,5 +1,5 @@
 // 費用の推定。実際の請求額と一致するとは限らない。
-import type { ModelInfo } from './types';
+import type { ModelInfo, RunResult } from './types';
 
 export const DEFAULT_RATE = 160; // 指示書の暫定換算レート(1米ドル=160円)。実勢レートではない
 export const RATE_NOTE = '1米ドル=160円(指示書の暫定値・2026年10月20日設定)。実勢レートとは異なります。';
@@ -60,3 +60,17 @@ export function monthlyCost(m: ModelInfo, p: MonthlyParams): MonthlyCost {
 
 export const yen = (n: number) => `${Math.round(n).toLocaleString('ja-JP')}円`;
 export const yenPrecise = (n: number) => (n < 10 ? `${n.toFixed(2)}円` : yen(n));
+
+// 実通信で、APIが使用量を返した成功結果の平均(費用の試算に反映するため)。概算の結果は含めない
+export function measuredUsage(results: RunResult[], modelKey: string) {
+  const rs = results.filter((r) => r.modelKey === modelKey && r.live && r.status === 'success' && r.usage.source === 'api' && r.track === 'standard');
+  if (!rs.length) return undefined;
+  const avg = (f: (r: RunResult) => number) => Math.round(rs.reduce((t, r) => t + f(r), 0) / rs.length);
+  const withReasoning = rs.filter((r) => typeof r.usage.reasoningTokens === 'number');
+  return {
+    count: rs.length,
+    inputTokens: avg((r) => r.usage.inputTokens),
+    outputTokens: avg((r) => r.usage.outputTokens),
+    reasoningTokens: withReasoning.length ? Math.round(withReasoning.reduce((t, r) => t + (r.usage.reasoningTokens as number), 0) / withReasoning.length) : undefined,
+  };
+}

@@ -59,3 +59,16 @@ tr.over td { color: var(--warn); }
 .info dd { margin: 0; }
 .result-list { list-style: none; padding: 0; }
 .row-btn { width: 100%; text-align: left; margin: 4px 0; font-size: 0.85rem; }
+.card.serious { border-color: var(--fail); border-width: 2px; }
+.badge.fail { color: var(--fail); border-color: var(--fail); }
+.badge.stress { color: var(--warn); border-color: var(--warn); }
+.stress-card { border-style: dashed; border-color: var(--warn); }
+.changes { margin: 8px 0; padding: 8px; background: var(--bg); border-radius: 8px; font-size: 0.85rem; overflow-wrap: anywhere; }
+.changes small { display: block; color: var(--muted); margin-top: 4px; }
+.checks .none b { color: var(--muted); }
+h4 { font-size: 0.85rem; margin: 12px 0 4px; }
+.serious-row .reason { width: 100%; margin: 0 0 6px; }
+tr.serious-row td { color: var(--fail); }
+.row-btn.serious { border-color: var(--fail); color: var(--fail); }
+.secret { -webkit-text-security: disc; }
+.check span a { color: var(--accent); }

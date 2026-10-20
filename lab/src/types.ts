@@ -18,15 +18,18 @@ export type Npc = {
 
 export type HistoryTurn = { player: string; reply: string };
 
+// 語句の検査は「疑い」を見つけるだけ(文脈で判断が変わるため、原則「要確認」)。
+// 所持金の検査はゲーム状態から機械的に確定できる。
 export type CheckRule =
-  | { kind: 'mustNotInclude'; words: string[]; label: string; severity: 'fail' | 'warn'; target?: 'all' | 'speech' }
-  | { kind: 'mustIncludeAny'; words: string[]; label: string; severity: 'fail' | 'warn' }
+  | { kind: 'mustNotInclude'; words: string[]; label: string; target?: 'all' | 'speech' }
+  | { kind: 'mustIncludeAny'; words: string[]; label: string }
   | { kind: 'noMoneyChange'; label: string }
   | { kind: 'paymentWithinFunds'; label: string; expectedPrice?: number };
 
 export type Scenario = {
   id: string;
   category: 'A' | 'B' | 'C' | 'D' | 'E' | 'F';
+  track: 'standard' | 'stress'; // standard = 通常の評価 / stress = 追加の耐性試験(通常の評価と混ぜない)
   title: string;
   purpose: string;
   checks: string[]; // 人が確認する観点(指示書の確認事項)
@@ -37,24 +40,31 @@ export type Scenario = {
   playerInput: string;
   state: GameState;
   rules: CheckRule[];
+  note?: string;
 };
 
 export type ModelStatus = '確認済み' | '一部確認' | '未確認' | '提供終了' | '利用不可';
+export type Support = '対応' | '非対応' | '未確認';
 
 export type ModelInfo = {
   key: string; // このアプリ内での識別子
   displayName: string;
-  provider: string; // 提供元(API の窓口)
+  provider: string; // 表示用の提供元名
   adapter: 'mock-good' | 'mock-bad' | 'openai' | 'none';
-  baseUrl?: string;
+  endpointId?: string; // 許可リスト(endpoints.ts)の送信先。任意のURLは使えない
   apiModelId?: string;
   status: ModelStatus;
   priceInputUsdPerM?: number;
   priceOutputUsdPerM?: number;
+  priceCheckedAt?: string;
+  priceSource?: string;
   monthlyFeeUsd?: number; // API利用に必要な月額(ない場合は空)
   includedCreditUsd?: number; // 月額などに含まれるクレジット
   contextTokens?: number;
   maxOutputTokens?: number;
+  params?: { temperature: Support; max_tokens: Support }; // 生成設定への対応
+  paramOverrides?: { values: Record<string, unknown>; reason: string }; // モデル固有の調整(理由つき)
+  reasoning?: string; // 推論(考えてから答える処理)についての情報
   japanese?: string;
   structuredOutput?: string;
   streaming?: string;
@@ -66,7 +76,12 @@ export type ModelInfo = {
   checkedAt?: string;
 };
 
-export type CheckResult = { label: string; outcome: 'pass' | 'warn' | 'fail' | 'skip'; detail: string };
+export type CheckResult = {
+  label: string;
+  basis: 'mechanical' | 'heuristic'; // mechanical = 機械的に確定 / heuristic = 語句による疑いの検出(目安)
+  outcome: 'pass' | 'warn' | 'fail' | 'skip';
+  detail: string;
+};
 
 export type ParsedOutput = {
   blocks: ({ type: 'narration'; text: string } | { type: 'speech'; speaker: string; text: string })[];
@@ -86,12 +101,31 @@ export const CRITERIA = [
 
 export type CriterionKey = (typeof CRITERIA)[number]['key'];
 
+// 点数とは別に、人が確認して記録する重大問題
+export const SERIOUS_ISSUES = [
+  { key: 'secretLeak', label: 'NPCが知り得ない秘密を、確定事実として漏らした' },
+  { key: 'playerDecided', label: 'プレイヤーの行動・意思を勝手に確定した' },
+  { key: 'personaBroken', label: 'NPCの人格や重要な設定を明確に壊した' },
+  { key: 'invalidState', label: 'ゲーム状態として成立しない変更を求めた' },
+  { key: 'rushedRelationship', label: '根拠なく関係性を急に進めた' },
+] as const;
+
+export type SeriousKey = (typeof SERIOUS_ISSUES)[number]['key'];
+
 export type Evaluation = {
   scores: Partial<Record<CriterionKey, number>>;
   reasons: Partial<Record<CriterionKey, string>>;
+  serious: Partial<Record<SeriousKey, string>>; // 記録した重大問題と、そのメモ(空文字でも記録あり)
   problemExample: string;
   comment: string;
   updatedAt: number;
+};
+
+export type Usage = {
+  inputTokens: number;
+  outputTokens: number; // 推論トークンを含む(OpenAI互換の数え方)。費用はこの値で計算する
+  reasoningTokens?: number; // APIが内訳として返した推論トークン(outputTokens に含まれる。二重に数えない)
+  source: 'api' | 'estimate'; // api = APIが返した値 / estimate = 文字数からの概算
 };
 
 export type RunResult = {
@@ -101,17 +135,25 @@ export type RunResult = {
   modelName: string;
   apiModelId?: string;
   provider: string;
+  endpoint?: string; // 実際の送信先(許可リストの値)
   live: boolean; // 実通信か(false = 模擬)
   scenarioId: string;
+  track: Scenario['track'];
   repeat: number;
   status: 'success' | 'error' | 'aborted';
   error?: string;
-  request: { messages: ChatMessage[]; params: Record<string, unknown> };
+  request: {
+    messages: ChatMessage[];
+    requestedParams: Record<string, unknown>; // 共通の指定値
+    sentParams: Record<string, unknown>; // 実際に送った値
+    paramNotes: string[]; // 送らなかった設定・モデル固有の調整とその理由
+  };
   output: string;
   parsed?: ParsedOutput;
   checks: CheckResult[];
   latencyMs: number;
-  usage: { inputTokens: number; outputTokens: number; estimated: boolean };
-  costJpy?: number;
+  usage: Usage;
+  price?: { inputUsdPerM: number; outputUsdPerM: number; checkedAt?: string; source?: string };
+  costJpy?: number; // 推定。実際の請求額は未確認
   evaluation?: Evaluation;
 };

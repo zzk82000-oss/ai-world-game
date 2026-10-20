@@ -3,7 +3,6 @@
 import type { ModelInfo } from './types';
 
 const CHECKED = '2026-10-20';
-const OPENROUTER = 'https://openrouter.ai/api/v1';
 
 export const models: ModelInfo[] = [
   {
@@ -31,8 +30,12 @@ export const models: ModelInfo[] = [
     displayName: 'Aion 3.5 Mini(OpenRouter経由)',
     provider: 'OpenRouter',
     adapter: 'openai',
-    baseUrl: OPENROUTER,
+    endpointId: 'openrouter',
     apiModelId: 'aion-labs/aion-3.5-mini',
+    priceCheckedAt: CHECKED,
+    priceSource: 'https://openrouter.ai/aion-labs/aion-3.5-mini(検索結果の抜粋)',
+    params: { temperature: '未確認', max_tokens: '未確認' },
+    reasoning: '推論(考えてから答える処理)が常にオンとの情報あり。推論のトークンが出力に含まれて課金されるか、出力上限(max_tokens)に含まれるかは未確認。',
     status: '一部確認',
     priceInputUsdPerM: 0.7,
     priceOutputUsdPerM: 1.4,
@@ -53,8 +56,12 @@ export const models: ModelInfo[] = [
     displayName: 'MiniMax M2-her(OpenRouter経由)',
     provider: 'OpenRouter',
     adapter: 'openai',
-    baseUrl: OPENROUTER,
+    endpointId: 'openrouter',
     apiModelId: 'minimax/minimax-m2-her',
+    priceCheckedAt: CHECKED,
+    priceSource: 'https://openrouter.ai/minimax/minimax-m2-her(検索結果の抜粋)',
+    params: { temperature: '対応', max_tokens: '未確認' },
+    reasoning: '未確認',
     status: '一部確認',
     priceInputUsdPerM: 0.3,
     priceOutputUsdPerM: 1.2,
@@ -75,8 +82,12 @@ export const models: ModelInfo[] = [
     displayName: 'Venice Uncensored Role-Play(Venice直接)',
     provider: 'Venice',
     adapter: 'openai',
-    baseUrl: 'https://api.venice.ai/api/v1',
+    endpointId: 'venice',
     apiModelId: 'venice-uncensored-role-play',
+    priceCheckedAt: CHECKED,
+    priceSource: 'https://venice.ai/models/venice-uncensored-role-play(検索結果の抜粋)',
+    params: { temperature: '未確認', max_tokens: '未確認' },
+    reasoning: '未確認',
     status: '一部確認',
     priceInputUsdPerM: 0.5,
     priceOutputUsdPerM: 2.0,
@@ -115,8 +126,10 @@ export const models: ModelInfo[] = [
     displayName: 'DeepSeek V4.1 Flash(OpenRouter経由)',
     provider: 'OpenRouter',
     adapter: 'openai',
-    baseUrl: OPENROUTER,
+    endpointId: 'openrouter',
     apiModelId: 'deepseek/deepseek-v4.1-flash',
+    params: { temperature: '未確認', max_tokens: '未確認' },
+    reasoning: '未確認',
     status: '一部確認',
     contextTokens: 1048576,
     japanese: '明記なし(未確認)',
@@ -134,8 +147,10 @@ export const models: ModelInfo[] = [
     displayName: 'GLM 5.3(OpenRouter経由)',
     provider: 'OpenRouter',
     adapter: 'openai',
-    baseUrl: OPENROUTER,
+    endpointId: 'openrouter',
     apiModelId: 'z-ai/glm-5.3',
+    params: { temperature: '未確認', max_tokens: '未確認' },
+    reasoning: '未確認',
     status: '一部確認',
     contextTokens: 1000000,
     japanese: 'GLM系は日本語が得意との記載あり(GLM-4.6についての記載)',
@@ -151,4 +166,3 @@ export const models: ModelInfo[] = [
 ];
 
 export const modelByKey = (key: string) => models.find((m) => m.key === key);
-export const providersNeedingKey = () => [...new Set(models.filter((m) => m.adapter === 'openai').map((m) => m.provider))];

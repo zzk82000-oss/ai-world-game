@@ -1,8 +1,9 @@
 // 比較テスト専用の保存先(端末内)。ゲーム本体のデータベースとは名前が違い、互いに触れない。
-// APIキーは結果とは別の場所に置き、書き出しには含めない。
+// APIキーは保存しない。以前の版でキーを保存していた場所(keys)は、開いたときに丸ごと削除する。
 import type { RunResult } from './types';
 
 export const LAB_DB = 'ai-world-game-lab';
+const DB_VERSION = 2; // 2: APIキーの保存場所(keys)を削除
 
 const req = <T>(r: IDBRequest<T>) =>
   new Promise<T>((resolve, reject) => {
@@ -17,18 +18,30 @@ const done = (tx: IDBTransaction) =>
   });
 
 export class LabStore {
-  private constructor(private db: IDBDatabase) {}
+  private constructor(
+    private db: IDBDatabase,
+    readonly legacyKeysRemoved: boolean, // 以前の版で保存されたキーを今回削除したか
+  ) {}
 
   static open(factory: IDBFactory = indexedDB): Promise<LabStore> {
     return new Promise((resolve, reject) => {
-      const r = factory.open(LAB_DB, 1);
+      let removed = false;
+      const r = factory.open(LAB_DB, DB_VERSION);
       r.onupgradeneeded = () => {
-        r.result.createObjectStore('results', { keyPath: 'id' });
-        r.result.createObjectStore('keys', { keyPath: 'provider' });
+        const db = r.result;
+        if (!db.objectStoreNames.contains('results')) db.createObjectStore('results', { keyPath: 'id' });
+        if (db.objectStoreNames.contains('keys')) {
+          db.deleteObjectStore('keys');
+          removed = true;
+        }
       };
-      r.onsuccess = () => resolve(new LabStore(r.result));
+      r.onsuccess = () => resolve(new LabStore(r.result, removed));
       r.onerror = () => reject(r.error);
     });
+  }
+
+  storeNames(): string[] {
+    return [...this.db.objectStoreNames];
   }
 
   async putResult(result: RunResult) {
@@ -45,27 +58,6 @@ export class LabStore {
   async clearResults() {
     const tx = this.db.transaction('results', 'readwrite');
     tx.objectStore('results').clear();
-    await done(tx);
-  }
-
-  async getKey(provider: string): Promise<string | undefined> {
-    const k = await req(this.db.transaction('keys').objectStore('keys').get(provider));
-    return typeof k?.key === 'string' ? k.key : undefined;
-  }
-
-  async listKeyProviders(): Promise<string[]> {
-    return (await req(this.db.transaction('keys').objectStore('keys').getAllKeys())) as string[];
-  }
-
-  async setKey(provider: string, key: string) {
-    const tx = this.db.transaction('keys', 'readwrite');
-    tx.objectStore('keys').put({ provider, key: key.trim() });
-    await done(tx);
-  }
-
-  async deleteKey(provider: string) {
-    const tx = this.db.transaction('keys', 'readwrite');
-    tx.objectStore('keys').delete(provider);
     await done(tx);
   }
 }
