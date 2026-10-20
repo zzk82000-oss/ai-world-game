@@ -36,6 +36,7 @@ export const models: ModelInfo[] = [
     priceSource: 'https://openrouter.ai/aion-labs/aion-3.5-mini(検索結果の抜粋)',
     params: { temperature: '未確認', max_tokens: '未確認' },
     reasoning: '推論(考えてから答える処理)が常にオンとの情報あり。推論のトークンが出力に含まれて課金されるか、出力上限(max_tokens)に含まれるかは未確認。',
+    paramOverrides: { values: { max_tokens: 4000 }, reason: '2026-10-20の最初の実通信で、出力上限1000トークンでは本文が空になった(考える処理で上限を使い切った可能性が高い。OpenRouterの画面で出力約1000トークンの消費を確認)。考える分の余裕を持たせるため。他のモデルは1000のまま。出力の長さの上限が違うことは、比較結果に影響しうる。' },
     status: '一部確認',
     priceInputUsdPerM: 0.7,
     priceOutputUsdPerM: 1.4,

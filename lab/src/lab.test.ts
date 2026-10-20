@@ -277,7 +277,7 @@ describe('本文が空だった失敗の記録', () => {
 
 describe('生成設定の記録', () => {
   it('非対応の設定は送らず、未確認の設定は注記して送る。指定値と送った値を分けて記録する', async () => {
-    const m: ModelInfo = { ...aion, params: { temperature: '非対応', max_tokens: '未確認' } };
+    const m: ModelInfo = { ...aion, paramOverrides: undefined, params: { temperature: '非対応', max_tokens: '未確認' } };
     const { sent, notes } = buildSentParams(m, { temperature: 0.8, max_tokens: 1000 });
     expect(sent).toEqual({ max_tokens: 1000 });
     expect(notes.join()).toContain('temperature は非対応');
@@ -285,6 +285,13 @@ describe('生成設定の記録', () => {
     const r = await runOne(m, sc('A'), { repeat: 1, keyFor: () => 'k'.repeat(20), verifiedEndpoints: VERIFIED, fetchImpl: (async () => okResponse()) as unknown as typeof fetch });
     expect(r.request.requestedParams).toEqual({ temperature: 0.8, max_tokens: 1000 });
     expect(r.request.sentParams).toEqual({ max_tokens: 1000, stream: false });
+  });
+
+  it('Aion は、最初の実通信の結果を受けて max_tokens を 4000 に調整し、その理由を記録する(他のモデルは1000のまま)', () => {
+    const a = buildSentParams(aion, { temperature: 0.8, max_tokens: 1000 });
+    expect(a.sent.max_tokens).toBe(4000);
+    expect(a.notes.join()).toContain('本文が空になった');
+    expect(buildSentParams(modelByKey('minimax-m2-her-or')!, { temperature: 0.8, max_tokens: 1000 }).sent.max_tokens).toBe(1000);
   });
 
   it('モデル固有の調整は、理由とともに記録する', () => {
