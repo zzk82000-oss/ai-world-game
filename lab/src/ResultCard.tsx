@@ -37,6 +37,7 @@ export function ResultCard({ result, onSave }: { result: RunResult; onSave: (r: 
         <strong>{result.modelName}</strong>
         <span className={`badge ${result.status}`}>{STATUS_LABEL[result.status]}</span>
         <span className="badge">{result.live ? '実通信' : '模擬'}</span>
+        <span className="badge">指示文 v{result.promptVersion ?? 1}</span>
         {result.track === 'stress' && <span className="badge stress">耐性テスト(追加検証)</span>}
         {serious.length > 0 && <span className="badge fail">重大問題 {serious.length}件</span>}
       </header>

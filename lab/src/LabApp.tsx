@@ -4,7 +4,7 @@ import { scenarioById, scenarios } from './data/scenarios';
 import { checkBrowserAccess, ENDPOINTS, liveBlockReason } from './endpoints';
 import { seriousLabels, toCsv, toJson, totalScore } from './export';
 import { modelByKey, models } from './models';
-import { buildMessages, GENERATION_PARAMS } from './prompt';
+import { buildMessages, GENERATION_PARAMS, PROMPT_VERSION } from './prompt';
 import { buildSentParams, estimateInputTokens } from './providers';
 import { ResultCard } from './ResultCard';
 import { runOne } from './runner';
@@ -180,7 +180,7 @@ function RunTab({ keys, verified, rate, onResult }: { keys: Keys; verified: Set<
       <div className={`card ${scenario.track === 'stress' ? 'stress-card' : ''}`}>
         <p>{scenario.purpose}</p>
         {scenario.note && <p className="note">※ {scenario.note}</p>}
-        <p className="meta">プレイヤーの入力: {scenario.playerInput}</p>
+        <p className="meta">プレイヤーの入力: {scenario.playerInput}(指示文 v{PROMPT_VERSION})</p>
         <ul className="plain">{scenario.checks.map((c) => <li key={c}>・{c}</li>)}</ul>
         <details>
           <summary>モデルに送る内容を見る(約{inTok.toLocaleString()}トークン)</summary>
@@ -283,7 +283,11 @@ function summarize(rs: RunResult[]) {
 
 function CompareTable({ results }: { results: RunResult[] }) {
   const groups = new Map<string, RunResult[]>();
-  for (const r of results) groups.set(r.modelName, [...(groups.get(r.modelName) ?? []), r]);
+  // 指示文の版が違う結果は混ぜずに、版ごとに別の行にする
+  for (const r of results) {
+    const k = `${r.modelName}(指示文v${r.promptVersion ?? 1})`;
+    groups.set(k, [...(groups.get(k) ?? []), r]);
+  }
   const fmt = (n: number | undefined, d = 1) => (n === undefined ? '-' : n.toFixed(d));
   if (!groups.size) return <p className="note">結果がありません。</p>;
   return (

@@ -139,6 +139,7 @@ export type RunResult = {
   live: boolean; // 実通信か(false = 模擬)
   scenarioId: string;
   track: Scenario['track'];
+  promptVersion?: number; // 指示文の版(記録のない古い結果は v1 として扱う)
   repeat: number;
   status: 'success' | 'error' | 'aborted';
   error?: string;

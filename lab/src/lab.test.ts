@@ -8,7 +8,7 @@ import { seriousLabels, toCsv, toJson, totalScore } from './export';
 import { badOutputs, goodOutputs } from './mockOutputs';
 import { modelByKey, models } from './models';
 import { parseOutput } from './parse';
-import { buildMessages } from './prompt';
+import { buildMessages, PROMPT_VERSION } from './prompt';
 import { buildSentParams, callModel } from './providers';
 import { runOne } from './runner';
 import { LAB_DB, LabStore } from './store';
@@ -54,6 +54,23 @@ describe('シナリオと送信内容', () => {
   it('場面にいないNPCの設定は渡さない。同じシナリオなら毎回同じ内容になる', () => {
     expect(buildMessages(sc('B1'))[0].content).not.toContain('## ミラ');
     expect(buildMessages(sc('E1'))).toEqual(buildMessages(sc('E1')));
+  });
+});
+
+describe('指示文の版', () => {
+  it('v2 は「必ず日本語で書く」を含み、全シナリオ・全モデルに同じ指示文を使う', () => {
+    expect(PROMPT_VERSION).toBe(2);
+    for (const s of scenarios) expect(buildMessages(s)[0].content).toContain('必ず日本語で書く');
+  });
+
+  it('結果に指示文の版を記録し、CSVにも出す。版の記録がない古い結果は v1 として扱う', async () => {
+    const r = await runOne(modelByKey('mock-good')!, sc('A'), { repeat: 1, mockDelayMs: 1 });
+    expect(r.promptVersion).toBe(2);
+    const old = { ...r, promptVersion: undefined };
+    const csv = toCsv([r, old]).split('\r\n');
+    const col = csv[0].split(',').indexOf('指示文の版');
+    expect(csv[1].split(',')[col]).toBe('v2');
+    expect(csv[2].split(',')[col]).toBe('v1');
   });
 });
 

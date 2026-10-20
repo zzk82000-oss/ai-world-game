@@ -3,7 +3,7 @@ import { newId } from '../../src/game/save';
 import { runChecks } from './checks';
 import { callCostUsd, DEFAULT_RATE, priceKnown } from './cost';
 import { parseOutput } from './parse';
-import { buildMessages, GENERATION_PARAMS } from './prompt';
+import { buildMessages, GENERATION_PARAMS, PROMPT_VERSION } from './prompt';
 import { buildSentParams, callModel } from './providers';
 import type { ModelInfo, RunResult, Scenario } from './types';
 
@@ -43,6 +43,7 @@ export async function runOne(model: ModelInfo, scenario: Scenario, opts: RunOpti
     live: model.adapter === 'openai',
     scenarioId: scenario.id,
     track: scenario.track,
+    promptVersion: PROMPT_VERSION,
     repeat: opts.repeat,
     status: outcome.status,
     error: outcome.error,
