@@ -435,6 +435,9 @@ describe('返答の長さ・構成', () => {
       expect(s).toContain('NPCのセリフ(1〜2行)');
       expect(s).toContain('行動や状況の説明(2〜3行)');
       expect(s).toContain('そこで終える');
+      expect(s).toContain('厚みを持たせる');
+      expect(s).toContain('「」付きの短いセリフ');
+      expect(s).toContain('②でも、プレイヤーの行動・セリフ・感情は書かない');
     }
   });
 
