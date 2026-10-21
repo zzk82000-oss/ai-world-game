@@ -66,6 +66,22 @@ export function runChecks(scenario: Scenario, output: string, parsed: ParsedOutp
         results.push(mech(rule.label, moves.length === 0, moves.length ? `所持金が動く提案があります: ${JSON.stringify(moves)}` : '状態変更の提案に、所持金を動かすものはありません'));
         break;
       }
+      case 'noUnrequestedMoneyChange': {
+        if (!parsed.changes) {
+          results.push({ label: rule.label, basis: 'heuristic', outcome: 'skip', detail: '状態変更の提案がないため判定できません' });
+          break;
+        }
+        const moves = parsed.changes.filter((c) => MONEY_TYPES.includes(c.type));
+        results.push({
+          label: rule.label,
+          basis: 'heuristic',
+          outcome: moves.length ? 'warn' : 'pass',
+          detail: moves.length
+            ? `取引の場面ではないのに、所持金が動く提案があります: ${JSON.stringify(moves)}。プレイヤーが頼んでいない購入・支払いなら、「プレイヤーの行動を勝手に確定した」重大問題かもしれません`
+            : '所持金を動かす提案はありません',
+        });
+        break;
+      }
       case 'paymentWithinFunds': {
         if (!parsed.changes) {
           results.push({ label: rule.label, basis: 'mechanical', outcome: 'skip', detail: '状態変更の提案がないため判定できません。会話文の内容は人が確認してください' });

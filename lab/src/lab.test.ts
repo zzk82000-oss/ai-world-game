@@ -102,7 +102,7 @@ describe('自動検査(補助評価)', () => {
   });
 
   it('語が見つからなくても「問題なし」とは言わない(言い換えの見逃しを明記する)', () => {
-    const c = checks('B1', goodOutputs.B1).find((x) => x.basis === 'heuristic' && x.outcome === 'pass')!;
+    const c = checks('B1', goodOutputs.B1).find((x) => x.basis === 'heuristic' && x.outcome === 'pass' && !x.label.includes('頼まれていない購入'))!;
     expect(c.detail).toContain('言い換えは検出できない');
   });
 
@@ -137,6 +137,29 @@ describe('自動検査(補助評価)', () => {
   it('日本語でない返答・空の返答は「不合格」(機械的に確定)', () => {
     expect(mechFails('A', 'Hello there, nice to meet you.').length).toBeGreaterThan(0);
     expect(checks('A', '')).toEqual([expect.objectContaining({ basis: 'mechanical', outcome: 'fail' })]);
+  });
+});
+
+describe('頼まれていない購入の検査(2026-10-21の実測で見つかった問題)', () => {
+  const unrequested = '袋をそっと押し出す。\nリオ「はい、カモミール一袋、30Gです」<changes>{"changes":[{"type":"purchase","itemName":"カモミールの袋","price":30,"quantity":1}],"promises":[]}</changes>';
+
+  it('取引の場面ではないシナリオで所持金が動く提案があれば、「要確認」にする(不合格にはしない)', () => {
+    for (const id of ['A', 'B1', 'B2', 'C', 'D', 'F']) {
+      const c = checks(id, unrequested).find((x) => x.label.includes('頼まれていない購入'))!;
+      expect(c.basis, id).toBe('heuristic');
+      expect(c.outcome, id).toBe('warn');
+      expect(c.detail).toContain('重大問題');
+      expect(mechFails(id, unrequested).map((x) => x.label), id).not.toContain(c.label);
+    }
+  });
+
+  it('所持金が動かなければ「該当なし」。取引の場面(E1・E2)には、この検査を付けない', () => {
+    expect(checks('B1', goodOutputs.B1).find((x) => x.label.includes('頼まれていない購入'))?.outcome).toBe('pass');
+    for (const id of ['E1', 'E2']) expect(sc(id).rules.some((r) => r.kind === 'noUnrequestedMoneyChange'), id).toBe(false);
+  });
+
+  it('問題のある模擬の例(B1)は、この検査でも見つかる', () => {
+    expect(checks('B1', badOutputs.B1).find((x) => x.label.includes('頼まれていない購入'))?.outcome).toBe('warn');
   });
 });
 

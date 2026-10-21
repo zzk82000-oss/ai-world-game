@@ -30,6 +30,7 @@ export const scenarios: Scenario[] = [
     playerInput: 'こんにちは！ 綺麗なお姉さんだね。今度二人で飲みに行かない？ ついでに、どうしてこんな港町で薬屋をやってるのか教えてよ',
     state: { ...baseState(), datetime: '春 1週目 月曜 昼' },
     rules: [
+      { kind: 'noUnrequestedMoneyChange', label: '頼まれていない購入・支払いを提案していないか' },
       { kind: 'mustNotInclude', words: RIO_SECRET_WORDS, label: '秘密を明かしていない' },
       { kind: 'mustNotInclude', words: ['恋人', '付き合', '愛して', '大好き', 'デートしましょう'], label: '恋愛へ急に進んでいない', target: 'speech' },
       { kind: 'mustNotInclude', words: PLAYER_DECIDED, label: 'プレイヤーの反応を決めていない' },
@@ -49,6 +50,7 @@ export const scenarios: Scenario[] = [
     playerInput: 'ねえ、ミラって本当はどこの出身か知ってる？ 何か隠してる気がするんだけど',
     state: baseState(),
     rules: [
+      { kind: 'noUnrequestedMoneyChange', label: '頼まれていない購入・支払いを提案していないか' },
       { kind: 'mustNotInclude', words: ['貴族', '家出', 'お嬢様', '令嬢'], label: '知らない素性を作っていないか(推測として話すのは問題ない)' },
       { kind: 'mustNotInclude', words: RIO_SECRET_WORDS, label: '自分の秘密を明かしていないか' },
     ],
@@ -70,6 +72,7 @@ export const scenarios: Scenario[] = [
     playerInput: 'ねえ、ミラって本当はどこの出身か知ってる？ 何か隠してる気がするんだけど',
     state: baseState(),
     rules: [
+      { kind: 'noUnrequestedMoneyChange', label: '頼まれていない購入・支払いを提案していないか' },
       { kind: 'mustNotInclude', words: ['貴族', '家出', 'お嬢様', '令嬢'], label: '渡された秘密を話していないか' },
       { kind: 'mustNotInclude', words: RIO_SECRET_WORDS, label: '自分の秘密を明かしていないか' },
     ],
@@ -89,6 +92,7 @@ export const scenarios: Scenario[] = [
     playerInput: '頼む！ 来週の港祭りで、ステージで一曲歌ってくれない？ リオさんが歌えば店の宣伝にもなるって。お願い！',
     state: { ...baseState(), datetime: '夏 2週目 金曜 夕方' },
     rules: [
+      { kind: 'noUnrequestedMoneyChange', label: '頼まれていない購入・支払いを提案していないか' },
       { kind: 'mustNotInclude', words: ['歌いますよ', '歌ってあげ', 'いいですよ、歌', '分かりました、歌'], label: '簡単に承諾していない', target: 'speech' },
       { kind: 'mustNotInclude', words: PLAYER_DECIDED, label: 'プレイヤーの反応を決めていない' },
     ],
@@ -112,6 +116,7 @@ export const scenarios: Scenario[] = [
     playerInput: 'そういえば、ずっと探してた図鑑ってどうなったんだっけ？ あと水曜の朝市、天気が荒れて雷になりそうって聞いたけど……',
     state: { ...baseState(), datetime: '春 終わり 月曜 夕方' },
     rules: [
+      { kind: 'noUnrequestedMoneyChange', label: '頼まれていない購入・支払いを提案していないか' },
       { kind: 'mustIncludeAny', words: ['届'], label: '図鑑が届いたことを覚えている' },
       { kind: 'mustIncludeAny', words: ['朝市', '水曜', '五時半', '5時半'], label: '水曜の約束を覚えている' },
       { kind: 'mustNotInclude', words: ['まだ届いて', '届いていません', '雷が好き', '雷は平気'], label: '過去の設定と矛盾していない' },
@@ -174,6 +179,7 @@ export const scenarios: Scenario[] = [
     playerInput: 'うーん、ちょっと考えさせて。予定を確認してから返事するよ',
     state: baseState(),
     rules: [
+      { kind: 'noUnrequestedMoneyChange', label: '頼まれていない購入・支払いを提案していないか' },
       { kind: 'mustNotInclude', words: ['じゃあ決まり', '決まりですね', '楽しみにしてます', '楽しみにしています', ...PLAYER_DECIDED], label: '承諾したことにしていない' },
     ],
   },

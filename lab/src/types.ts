@@ -24,6 +24,7 @@ export type CheckRule =
   | { kind: 'mustNotInclude'; words: string[]; label: string; target?: 'all' | 'speech' }
   | { kind: 'mustIncludeAny'; words: string[]; label: string }
   | { kind: 'noMoneyChange'; label: string }
+  | { kind: 'noUnrequestedMoneyChange'; label: string } // 取引の場面ではないのに所持金が動く提案(プレイヤーが頼んでいない購入などの疑い)
   | { kind: 'paymentWithinFunds'; label: string; expectedPrice?: number };
 
 export type Scenario = {
