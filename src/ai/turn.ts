@@ -11,7 +11,7 @@ import type { Message } from '../types';
 
 export type TurnInput = {
   model: ModelInfo;
-  apiKey: string;
+  apiKey: string; // model の送信先(OpenRouter または Venice)用のキー
   state: GameState;
   messages: Message[];
   playerText: string;
@@ -54,20 +54,23 @@ export function describeChange(c: Change): string {
 }
 
 export async function playTurn(input: TurnInput): Promise<TurnResult> {
-  // 成人向けモードは、規約を確認した提供元に固定しているときだけ送る(提供元はリクエストごとに変わり、規約が異なるため)
-  if (input.adult && !input.providerPin?.trim()) {
-    return { ok: false, aborted: false, error: '成人向けモードでは、規約を確認した提供元を「AIの設定」の「提供元の指定」で設定する必要があります(未設定のまま送信しません)' };
+  const endpointId = input.model.endpointId ?? 'openrouter';
+  const pin = endpointId === 'openrouter' ? input.providerPin?.trim() || undefined : undefined;
+  // 成人向けモードは、規約を確認した送信先(Venice)か、規約を確認した提供元に固定した OpenRouter のときだけ送る
+  // (OpenRouter は提供元がリクエストごとに変わり、規約が異なるため)
+  if (input.adult && endpointId === 'openrouter' && !pin) {
+    return { ok: false, aborted: false, error: '成人向けモードで OpenRouter を使うときは、規約を確認した提供元を「AIの設定」の「提供元の指定」で設定してください(未設定のまま送信しません)。Venice のモデルなら、指定は不要です。' };
   }
   const messages = buildGameMessages(input.state, input.messages, input.playerText, undefined, { adult: input.adult });
   const { sent } = buildSentParams(input.model, { ...GENERATION_PARAMS });
   const out = await callModel(input.model, messages, sent, {
     scenarioId: 'game',
-    keyFor: (id) => (id === 'openrouter' ? input.apiKey : undefined),
-    // OpenRouter のブラウザからの直接接続は、比較環境の接続確認で確認済み
-    verifiedEndpoints: new Set(['openrouter']),
+    keyFor: (id) => (id === endpointId ? input.apiKey : undefined),
+    // ブラウザからの直接接続は、比較環境の接続確認で、OpenRouter・Venice とも確認済み
+    verifiedEndpoints: new Set(['openrouter', 'venice']),
     signal: input.signal,
     fetchImpl: input.fetchImpl,
-    providerPin: input.providerPin?.trim() || undefined,
+    providerPin: pin,
   });
   if (out.status !== 'success') {
     return { ok: false, aborted: out.status === 'aborted', error: out.error ?? '返答を受け取れませんでした' };

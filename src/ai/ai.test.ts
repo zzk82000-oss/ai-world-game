@@ -298,3 +298,56 @@ describe('成人向けモードは提供元の指定が必須', () => {
     expect((await playTurn({ model, apiKey: KEY, state: initialState(), messages: [], playerText: 'x', fetchImpl: f })).ok).toBe(true);
   });
 });
+
+describe('Venice(複数のキー・送信先ごとの扱い)', () => {
+  const venice = modelByKey('venice-uncensored-1-2')!;
+
+  it('キーは、OpenRouter用とVenice用を別々に保存・解錠・削除できる', async () => {
+    const v = await KeyVault.open(new IDBFactory());
+    await v.save(KEY, 'correct horse battery', 'openrouter');
+    expect(await v.hasKey('venice')).toBe(false);
+    const VKEY = 'vn-' + 'z9y8x7w6'.repeat(6);
+    await v.save(VKEY, 'correct horse battery', 'venice');
+    expect(await v.unlock('correct horse battery', 'openrouter')).toBe(KEY);
+    expect(await v.unlock('correct horse battery', 'venice')).toBe(VKEY);
+    await v.remove('venice');
+    expect(await v.hasKey('venice')).toBe(false);
+    expect(await v.hasKey('openrouter')).toBe(true);
+  });
+
+  it('Venice のモデルは、Venice の送信先に、Venice のキーで送る(OpenRouter のキーや提供元の指定は使わない)', async () => {
+    let url = '';
+    let auth = '';
+    let body: Record<string, unknown> = {};
+    const f = (async (u: unknown, init?: RequestInit) => {
+      url = String(u);
+      auth = String((init?.headers as Record<string, string>).Authorization);
+      body = JSON.parse(String(init?.body));
+      return okBody('リオ「どうも」');
+    }) as unknown as typeof fetch;
+    const r = await playTurn({ model: venice, apiKey: 'VENICE-KEY-' + 'k'.repeat(20), state: initialState(), messages: [], playerText: 'x', providerPin: 'inference-net', fetchImpl: f });
+    expect(r.ok).toBe(true);
+    expect(url).toBe('https://api.venice.ai/api/v1/chat/completions');
+    expect(auth).toBe('Bearer VENICE-KEY-' + 'k'.repeat(20));
+    expect('provider' in body).toBe(false);
+    expect(body.model).toBe('venice-uncensored-1-2');
+  });
+
+  it('成人向けモードは、Venice なら提供元の指定なしで送れる。OpenRouter は指定が必要', async () => {
+    const f = (async () => okBody('リオ「どうも」')) as unknown as typeof fetch;
+    const base = { apiKey: KEY, state: initialState(), messages: [], playerText: 'x', adult: true, fetchImpl: f };
+    expect((await playTurn({ ...base, model: venice })).ok).toBe(true);
+    expect((await playTurn({ ...base, model })).ok).toBe(false);
+    expect((await playTurn({ ...base, model, providerPin: 'example' })).ok).toBe(true);
+  });
+
+  it('Venice 用のキーは、OpenRouter の送信先には送られない', async () => {
+    const seen: string[] = [];
+    const f = (async (u: unknown) => {
+      seen.push(String(u));
+      return okBody('リオ「どうも」');
+    }) as unknown as typeof fetch;
+    await playTurn({ model, apiKey: 'x'.repeat(30), state: initialState(), messages: [], playerText: 'x', fetchImpl: f });
+    expect(seen).toEqual(['https://openrouter.ai/api/v1/chat/completions']);
+  });
+});

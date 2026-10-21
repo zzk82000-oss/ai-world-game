@@ -142,10 +142,11 @@ export default function App() {
   const send = async () => {
     const text = draft.trim();
     if (!text || busy) return;
-    const key = vault.getKey();
     const model = modelByKey(modelKey);
+    const ep = model?.endpointId === 'venice' ? 'venice' : 'openrouter';
+    const key = vault.getKey(ep);
     if (!key || !model) {
-      setNotice('AIにつながっていません。メニューの「AIの設定」で、キーの保存または解錠をしてください。');
+      setNotice(`${ep === 'venice' ? 'Venice' : 'OpenRouter'} につながっていません。メニューの「AIの設定」で、キーの保存または解錠をしてください。`);
       return;
     }
     // 1日の呼び出し回数の上限。数えるのは送信しようとした回数
@@ -201,6 +202,8 @@ export default function App() {
     );
   };
 
+  const chosenEp = modelByKey(modelKey)?.endpointId === 'venice' ? 'venice' : 'openrouter';
+  const connected = vault.statuses[chosenEp] === 'unlocked';
   const lastAiId = [...messages].reverse().find((m) => m.role === 'ai')?.id;
 
   const closeMenu = () => {
@@ -285,9 +288,9 @@ export default function App() {
         </button>
       )}
 
-      {vault.status !== 'unlocked' && vault.status !== 'loading' && (
+      {!connected && !Object.values(vault.statuses).includes('loading') && (
         <p className="notice banner" onClick={() => { setMenuOpen(true); setView('ai'); }}>
-          AIにつながっていません。タップして、キーの保存または解錠をしてください。
+          選んだモデルにつながっていません。タップして、キーの保存または解錠をしてください。
         </p>
       )}
       {busy && <p className="thinking">考え中…(長いときは「停止」を押せます)</p>}
@@ -304,7 +307,7 @@ export default function App() {
             停止
           </button>
         ) : (
-          <button className="send" onClick={() => void send()} disabled={!draft.trim() || vault.status !== 'unlocked'}>
+          <button className="send" onClick={() => void send()} disabled={!draft.trim() || !connected}>
             送信
           </button>
         )}
@@ -319,7 +322,7 @@ export default function App() {
           <DataEditor state={gameState} onChange={setGameState} onBack={() => setView('main')} />
         ) : view === 'ai' ? (
           <AiSettings
-            status={vault.status}
+            statuses={vault.statuses}
             onRegister={vault.register}
             onUnlock={vault.unlock}
             onLock={vault.lock}

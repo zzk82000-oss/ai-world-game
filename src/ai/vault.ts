@@ -6,7 +6,9 @@
 
 export const VAULT_DB = 'ai-world-game-vault';
 const STORE = 'vault';
-const RECORD_ID = 'openrouter-key';
+export const VAULT_ENDPOINTS = ['openrouter', 'venice'] as const;
+export type VaultEndpoint = (typeof VAULT_ENDPOINTS)[number];
+const recordId = (ep: VaultEndpoint) => `${ep}-key`; // openrouter は従来と同じ 'openrouter-key'
 const ITERATIONS = 300_000;
 const AAD = new TextEncoder().encode('ai-world-game-key-v1');
 export const MIN_PASSPHRASE = 8;
@@ -57,11 +59,11 @@ export class KeyVault {
     });
   }
 
-  async hasKey(): Promise<boolean> {
-    return (await req(this.db.transaction(STORE).objectStore(STORE).get(RECORD_ID))) !== undefined;
+  async hasKey(ep: VaultEndpoint = 'openrouter'): Promise<boolean> {
+    return (await req(this.db.transaction(STORE).objectStore(STORE).get(recordId(ep)))) !== undefined;
   }
 
-  async save(apiKey: string, passphrase: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  async save(apiKey: string, passphrase: string, ep: VaultEndpoint = 'openrouter'): Promise<{ ok: true } | { ok: false; error: string }> {
     const bad = validateApiKey(apiKey);
     if (bad) return { ok: false, error: bad };
     if (passphrase.length < MIN_PASSPHRASE) return { ok: false, error: `パスフレーズは${MIN_PASSPHRASE}文字以上にしてください` };
@@ -69,7 +71,7 @@ export class KeyVault {
     const iv = crypto.getRandomValues(new Uint8Array(12));
     const key = await deriveKey(passphrase, salt, ITERATIONS);
     const enc = await crypto.subtle.encrypt({ name: 'AES-GCM', iv, additionalData: AAD }, key, new TextEncoder().encode(apiKey.trim()));
-    const rec: Record_ = { id: RECORD_ID, v: 1, salt, iv, iterations: ITERATIONS, data: new Uint8Array(enc), savedAt: Date.now() };
+    const rec: Record_ = { id: recordId(ep), v: 1, salt, iv, iterations: ITERATIONS, data: new Uint8Array(enc), savedAt: Date.now() };
     const tx = this.db.transaction(STORE, 'readwrite');
     tx.objectStore(STORE).put(rec);
     await done(tx);
@@ -77,8 +79,8 @@ export class KeyVault {
   }
 
   // パスフレーズが違う(または壊れている)ときは null
-  async unlock(passphrase: string): Promise<string | null> {
-    const rec = (await req(this.db.transaction(STORE).objectStore(STORE).get(RECORD_ID))) as Record_ | undefined;
+  async unlock(passphrase: string, ep: VaultEndpoint = 'openrouter'): Promise<string | null> {
+    const rec = (await req(this.db.transaction(STORE).objectStore(STORE).get(recordId(ep)))) as Record_ | undefined;
     if (!rec) return null;
     try {
       const key = await deriveKey(passphrase, rec.salt, rec.iterations);
@@ -89,9 +91,9 @@ export class KeyVault {
     }
   }
 
-  async remove(): Promise<void> {
+  async remove(ep: VaultEndpoint = 'openrouter'): Promise<void> {
     const tx = this.db.transaction(STORE, 'readwrite');
-    tx.objectStore(STORE).delete(RECORD_ID);
+    tx.objectStore(STORE).delete(recordId(ep));
     await done(tx);
   }
 
