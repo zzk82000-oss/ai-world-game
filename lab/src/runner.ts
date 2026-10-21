@@ -5,7 +5,7 @@ import { callCostUsd, DEFAULT_RATE, priceKnown } from './cost';
 import { parseOutput } from './parse';
 import { buildMessages, GENERATION_PARAMS, PROMPT_VERSION } from './prompt';
 import { buildSentParams, callModel } from './providers';
-import type { ModelInfo, RunResult, Scenario } from './types';
+import type { ModelInfo, RunEnv, RunResult, Scenario } from './types';
 
 export type RunOptions = {
   repeat: number;
@@ -15,6 +15,7 @@ export type RunOptions = {
   fetchImpl?: typeof fetch;
   rate?: number;
   mockDelayMs?: number;
+  env?: RunEnv; // 実行時の環境の記録(ZDR・メモ)
 };
 
 export async function runOne(model: ModelInfo, scenario: Scenario, opts: RunOptions): Promise<RunResult> {
@@ -58,5 +59,6 @@ export async function runOne(model: ModelInfo, scenario: Scenario, opts: RunOpti
       ? { inputUsdPerM: model.priceInputUsdPerM as number, outputUsdPerM: model.priceOutputUsdPerM as number, checkedAt: model.priceCheckedAt, source: model.priceSource }
       : undefined,
     costJpy: usd === undefined ? undefined : usd * (opts.rate ?? DEFAULT_RATE),
+    env: opts.env,
   };
 }

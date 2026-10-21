@@ -1,7 +1,19 @@
 import { useState } from 'react';
 import { yenPrecise } from './cost';
-import { seriousLabels, totalScore } from './export';
-import { CRITERIA, SERIOUS_ISSUES, type CriterionKey, type Evaluation, type RunResult, type SeriousKey } from './types';
+import { COMPARISON_LABEL, comparisonKind, hasSerious, seriousLabels, totalScore } from './export';
+import {
+  CRITERIA,
+  OVERALL_RATINGS,
+  PROBLEM_TYPES,
+  SERIOUS_ISSUES,
+  type CriterionKey,
+  type Evaluation,
+  type ProblemKey,
+  type QuickEvaluation,
+  type RunResult,
+  type SeriousJudgement,
+  type SeriousKey,
+} from './types';
 
 const MECH_LABEL = { pass: '合格', warn: '注意', fail: '不合格', skip: '判定なし' } as const;
 const HEUR_LABEL = { pass: '該当なし', warn: '要確認', fail: '要確認', skip: '判定なし' } as const;
@@ -9,11 +21,65 @@ const STATUS_LABEL = { success: '成功', error: '失敗', aborted: '停止' } a
 
 const emptyEval = (): Evaluation => ({ scores: {}, reasons: {}, serious: {}, problemExample: '', comment: '', updatedAt: 0 });
 
+const emptyQuick = (): QuickEvaluation => ({ problems: [], serious: 'unknown', comment: '', updatedAt: 0 });
+const SERIOUS_CHOICES: { v: SeriousJudgement; label: string }[] = [
+  { v: 'no', label: 'なし' },
+  { v: 'yes', label: 'あり' },
+  { v: 'unknown', label: '未判断' },
+];
+
+// 簡易評価。タップするたびに自動で保存する(保存ボタンは要らない)。
+function QuickEval({ result, onSave }: { result: RunResult; onSave: (r: RunResult) => Promise<void> }) {
+  const [q, setQ] = useState<QuickEvaluation>({ ...emptyQuick(), ...result.quick });
+  const [comment, setComment] = useState(result.quick?.comment ?? '');
+  const save = (next: QuickEvaluation) => {
+    setQ(next);
+    void onSave({ ...result, quick: { ...next, updatedAt: Date.now() } });
+  };
+  const toggleProblem = (k: ProblemKey) =>
+    save({ ...q, problems: q.problems.includes(k) ? q.problems.filter((x) => x !== k) : [...q.problems, k] });
+  return (
+    <div className="quick">
+      <h4>簡易評価 {result.quick ? '' : '(未評価)'}</h4>
+      <div className="row wrap">
+        {OVERALL_RATINGS.map((o) => (
+          <button key={o} className={q.overall === o ? 'on' : ''} aria-pressed={q.overall === o} onClick={() => save({ ...q, overall: q.overall === o ? undefined : o })}>
+            {o}
+          </button>
+        ))}
+      </div>
+      <p className="note">問題があれば選ぶ(複数可)</p>
+      {PROBLEM_TYPES.map((p) => (
+        <label key={p.key} className="check">
+          <input type="checkbox" checked={q.problems.includes(p.key)} onChange={() => toggleProblem(p.key)} />
+          {p.label}
+        </label>
+      ))}
+      <p className="note">重大問題(総合評価とは別。文章が自然でも、重大な違反があれば「あり」)</p>
+      <div className="row wrap">
+        {SERIOUS_CHOICES.map((c) => (
+          <button key={c.v} className={q.serious === c.v ? (c.v === 'yes' ? 'on danger' : 'on') : ''} aria-pressed={q.serious === c.v} onClick={() => save({ ...q, serious: c.v })}>
+            {c.label}
+          </button>
+        ))}
+      </div>
+      <input
+        className="reason"
+        placeholder="一言コメント(任意)"
+        value={comment}
+        onChange={(e) => setComment(e.target.value)}
+        onBlur={() => comment !== q.comment && save({ ...q, comment })}
+      />
+    </div>
+  );
+}
+
 export function ResultCard({ result, onSave }: { result: RunResult; onSave: (r: RunResult) => Promise<void> }) {
   const [ev, setEv] = useState<Evaluation>({ ...emptyEval(), ...result.evaluation, serious: result.evaluation?.serious ?? {} });
   const [saved, setSaved] = useState('');
   const total = totalScore({ ...result, evaluation: ev });
   const serious = seriousLabels({ ...result, evaluation: ev });
+  const seriousAny = hasSerious({ ...result, evaluation: ev });
 
   const setScore = (k: CriterionKey, max: number, v: string) => {
     const n = v === '' ? undefined : Math.max(0, Math.min(max, Math.round(Number(v))));
@@ -32,14 +98,16 @@ export function ResultCard({ result, onSave }: { result: RunResult; onSave: (r: 
   const heuristic = result.checks.filter((c) => c.basis === 'heuristic');
 
   return (
-    <article className={`card ${serious.length ? 'serious' : ''}`}>
+    <article className={`card ${seriousAny ? 'serious' : ''}`}>
       <header className="card-head">
         <strong>{result.modelName}</strong>
         <span className={`badge ${result.status}`}>{STATUS_LABEL[result.status]}</span>
         <span className="badge">{result.live ? '実通信' : '模擬'}</span>
         <span className="badge">指示文 v{result.promptVersion ?? 1}</span>
         {result.track === 'stress' && <span className="badge stress">耐性テスト(追加検証)</span>}
-        {serious.length > 0 && <span className="badge fail">重大問題 {serious.length}件</span>}
+        <span className="badge">{COMPARISON_LABEL[comparisonKind(result)]}</span>
+        {result.quick?.overall && <span className="badge">評価 {result.quick.overall}</span>}
+        {seriousAny && <span className="badge fail">重大問題あり</span>}
       </header>
       <p className="meta">
         シナリオ {result.scenarioId} ・ {result.repeat}回目 ・ {new Date(result.createdAt).toLocaleString('ja-JP')}
@@ -48,6 +116,8 @@ export function ResultCard({ result, onSave }: { result: RunResult; onSave: (r: 
         {result.usage.reasoningTokens !== undefined ? `(うち推論 ${result.usage.reasoningTokens})` : ''}
         {result.usage.source === 'api' ? '(APIの値)' : '(概算)'}
         {result.live ? ` ・ 処理した提供元: ${result.servedBy ?? '不明(返ってこなかった)'}` : ''}
+        {result.live ? ` ・ ZDR(入力値): ${result.env ? { on: 'オン', off: 'オフ', unknown: '未確認' }[result.env.zdr] : '未記録'}` : ''}
+        {result.env?.note ? ` ・ メモ: ${result.env.note}` : ''}
         <br />
         推定費用 {result.costJpy === undefined ? '料金未確認' : yenPrecise(result.costJpy)}
         {result.price ? `(単価 $${result.price.inputUsdPerM}/$${result.price.outputUsdPerM}・${result.price.checkedAt ?? '確認日不明'}時点)` : ''}・実際の請求額は未確認
@@ -114,14 +184,16 @@ export function ResultCard({ result, onSave }: { result: RunResult; onSave: (r: 
               </li>
             ))}
           </ul>
-          <p className="note">語句の有無だけで違反・合格は決まりません。言い換えは検出できません。最終判断は採点で行ってください。</p>
+          <p className="note">語句の有無だけで違反・合格は決まりません。言い換えは検出できません。最終判断は人の評価で行ってください。</p>
         </>
       )}
 
+      {result.status === 'success' && <QuickEval key={result.id} result={result} onSave={onSave} />}
+
       {result.status === 'success' && (
-        <details className="eval" open={!result.evaluation}>
+        <details className="eval">
           <summary>
-            採点 {total !== undefined ? `(合計 ${total}/100)` : '(未入力)'}
+            詳細評価(任意・100点満点) {total !== undefined ? `(合計 ${total}/100)` : '(未入力)'}
             {serious.length > 0 ? ` ・ 重大問題 ${serious.length}件` : ''}
           </summary>
           {CRITERIA.map((c) => (
@@ -165,7 +237,7 @@ export function ResultCard({ result, onSave }: { result: RunResult; onSave: (r: 
               setSaved('保存しました');
             }}
           >
-            採点を保存
+            詳細評価を保存
           </button>
           {saved && <span className="note"> {saved}</span>}
         </details>

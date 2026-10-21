@@ -72,3 +72,8 @@ tr.serious-row td { color: var(--fail); }
 .row-btn.serious { border-color: var(--fail); color: var(--fail); }
 .secret { -webkit-text-security: disc; }
 .check span a { color: var(--accent); }
+
+/* 簡易評価 */
+.quick button { min-width: 48px; padding: 10px 14px; font-size: 1.1rem; }
+.quick button.on { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+.quick button.on.danger { background: #b3261e; border-color: #b3261e; color: #fff; }

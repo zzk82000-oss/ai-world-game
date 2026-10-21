@@ -122,6 +122,35 @@ export type Evaluation = {
   updatedAt: number;
 };
 
+// 簡易評価(基本の評価方法)。数回のタップで終わることを優先する。100点満点の詳細評価(Evaluation)とは別に記録する。
+export const OVERALL_RATINGS = ['◎', '○', '△', '×'] as const;
+export type OverallRating = (typeof OVERALL_RATINGS)[number];
+
+export const PROBLEM_TYPES = [
+  { key: 'japanese', label: '日本語・会話の不自然さ' },
+  { key: 'persona', label: 'NPCの人格・距離感の問題' },
+  { key: 'memory', label: '記憶・秘密・世界設定の問題' },
+  { key: 'playerAct', label: 'プレイヤーの意思の代行' },
+  { key: 'stateChange', label: 'ゲーム状態の不正な変更' },
+] as const;
+export type ProblemKey = (typeof PROBLEM_TYPES)[number]['key'];
+
+export type SeriousJudgement = 'yes' | 'no' | 'unknown';
+
+export type QuickEvaluation = {
+  overall?: OverallRating; // 未選択 = 総合評価なし
+  problems: ProblemKey[];
+  serious: SeriousJudgement; // 総合評価とは独立。文章が自然でも重大な違反があれば「あり」
+  comment: string;
+  updatedAt: number;
+};
+
+// 実行したときの環境の記録(ZDR・規約確認のメモ)。値は人が入力したもので、提供元の実際の処理を保証するものではない。
+export type RunEnv = {
+  zdr: 'on' | 'off' | 'unknown'; // OpenRouter の「データを残さない(ZDR)」設定
+  note: string; // 提供元の規約確認の結果などのメモ(任意)
+};
+
 export type Usage = {
   inputTokens: number;
   outputTokens: number; // 推論トークンを含む(OpenAI互換の数え方)。費用はこの値で計算する
@@ -158,5 +187,7 @@ export type RunResult = {
   usage: Usage;
   price?: { inputUsdPerM: number; outputUsdPerM: number; checkedAt?: string; source?: string };
   costJpy?: number; // 推定。実際の請求額は未確認
-  evaluation?: Evaluation;
+  evaluation?: Evaluation; // 詳細評価(100点満点・任意)
+  quick?: QuickEvaluation; // 簡易評価(基本)。記録のない結果は「未評価」
+  env?: RunEnv; // 記録のない古い結果は「未記録」
 };

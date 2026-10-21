@@ -2,14 +2,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { callCostUsd, DEFAULT_RATE, measuredUsage, monthlyCost, priceKnown, RATE_NOTE, USAGE_LEVELS, yen, yenPrecise } from './cost';
 import { scenarioById, scenarios } from './data/scenarios';
 import { checkBrowserAccess, ENDPOINTS, liveBlockReason } from './endpoints';
-import { seriousLabels, toCsv, toJson, totalScore } from './export';
+import { COMPARISON_LABEL, comparisonKind, hasSerious, toCsv, toJson, totalScore } from './export';
 import { modelByKey, models } from './models';
 import { buildMessages, GENERATION_PARAMS, PROMPT_VERSION } from './prompt';
 import { buildSentParams, estimateInputTokens } from './providers';
 import { ResultCard } from './ResultCard';
 import { runOne } from './runner';
 import { LabStore } from './store';
-import { CRITERIA, type ModelInfo, type RunResult } from './types';
+import { CRITERIA, OVERALL_RATINGS, type ModelInfo, type RunEnv, type RunResult } from './types';
 
 type Tab = 'run' | 'results' | 'cost' | 'models' | 'settings';
 const TABS: [Tab, string][] = [['run', '実行'], ['results', '結果'], ['cost', '費用'], ['models', 'モデル'], ['settings', '設定']];
@@ -114,6 +114,15 @@ export default function LabApp() {
 
 type Keys = ReturnType<typeof useMemoryKeys>;
 
+const ENV_KEY = 'ai-lab-run-env'; // ZDR・メモの入力値だけ(キーや結果は入れない)
+function loadEnv(): RunEnv {
+  try {
+    const v = JSON.parse(localStorage.getItem(ENV_KEY) ?? 'null');
+    if (v && ['on', 'off', 'unknown'].includes(v.zdr)) return { zdr: v.zdr, note: typeof v.note === 'string' ? v.note : '' };
+  } catch { /* 読めなければ未確認 */ }
+  return { zdr: 'unknown', note: '' };
+}
+
 function RunTab({ keys, verified, rate, onResult }: { keys: Keys; verified: Set<string>; rate: number; onResult: (r: RunResult) => Promise<void> }) {
   const [modelKey, setModelKey] = useState('mock-good');
   const [scenarioId, setScenarioId] = useState('A');
@@ -122,6 +131,11 @@ function RunTab({ keys, verified, rate, onResult }: { keys: Keys; verified: Set<
   const [agreed, setAgreed] = useState(false);
   const [termsChecked, setTermsChecked] = useState(false);
   const [last, setLast] = useState<RunResult[]>([]);
+  const [env, setEnv] = useState<RunEnv>(loadEnv);
+  const updateEnv = (next: RunEnv) => {
+    setEnv(next);
+    try { localStorage.setItem(ENV_KEY, JSON.stringify(next)); } catch { /* 保存できなくても動く */ }
+  };
   const abortRef = useRef<AbortController | null>(null);
 
   const model = modelByKey(modelKey)!;
@@ -143,7 +157,7 @@ function RunTab({ keys, verified, rate, onResult }: { keys: Keys; verified: Set<
     for (const [i, t] of targets.entries()) {
       if (ac.signal.aborted) break;
       setBusy(`${i + 1} / ${targets.length} を実行中…`);
-      const r = await runOne(model, scenarioById(t.id)!, { repeat: t.repeat, keyFor: keys.keyFor, verifiedEndpoints: verified, signal: ac.signal, rate });
+      const r = await runOne(model, scenarioById(t.id)!, { repeat: t.repeat, keyFor: keys.keyFor, verifiedEndpoints: verified, signal: ac.signal, rate, env });
       await onResult(r);
       done.push(r);
       setLast([...done].reverse());
@@ -176,6 +190,23 @@ function RunTab({ keys, verified, rate, onResult }: { keys: Keys; verified: Set<
           </optgroup>
         </select>
       </label>
+
+      <div className="card">
+        <h4>実行環境の記録</h4>
+        <label className="field">
+          OpenRouter の ZDR(データを残さない設定)
+          <select value={env.zdr} onChange={(e) => updateEnv({ ...env, zdr: e.target.value as RunEnv['zdr'] })}>
+            <option value="unknown">未確認</option>
+            <option value="on">オン</option>
+            <option value="off">オフ</option>
+          </select>
+        </label>
+        <label className="field">
+          規約確認などのメモ(任意)
+          <input value={env.note} onChange={(e) => updateEnv({ ...env, note: e.target.value })} placeholder="例: 提供元の盾マークは緑" />
+        </label>
+        <p className="note">あなたが入力した値を、各結果に記録します。提供元が実際にそう処理したことの証明ではありません。</p>
+      </div>
 
       <div className={`card ${scenario.track === 'stress' ? 'stress-card' : ''}`}>
         <p>{scenario.purpose}</p>
@@ -275,7 +306,10 @@ function summarize(rs: RunResult[]) {
     mechFails: mech.filter((c) => c.outcome === 'fail').length,
     mechTotal: mech.length,
     warns: ok.flatMap((r) => r.checks).filter((c) => c.outcome === 'warn').length,
-    serious: ok.filter((r) => seriousLabels(r).length > 0).length,
+    serious: ok.filter(hasSerious).length,
+    seriousUnjudged: ok.filter((r) => r.quick && r.quick.serious === 'unknown' && !hasSerious(r)).length,
+    ratings: OVERALL_RATINGS.map((o) => ok.filter((r) => r.quick?.overall === o).length),
+    unrated: ok.filter((r) => !r.quick?.overall).length,
     avgLatency: avg(ok.map((r) => r.latencyMs)),
     avgCost: avg(ok.map((r) => r.costJpy).filter((x): x is number => x !== undefined)),
   };
@@ -283,9 +317,9 @@ function summarize(rs: RunResult[]) {
 
 function CompareTable({ results }: { results: RunResult[] }) {
   const groups = new Map<string, RunResult[]>();
-  // 指示文の版が違う結果は混ぜずに、版ごとに別の行にする
+  // 指示文の版が違う結果、共通条件と実運用(個別設定あり)の結果は混ぜずに、別の行にする
   for (const r of results) {
-    const k = `${r.modelName}(指示文v${r.promptVersion ?? 1})`;
+    const k = `${r.modelName}(指示文v${r.promptVersion ?? 1}・${COMPARISON_LABEL[comparisonKind(r)]})`;
     groups.set(k, [...(groups.get(k) ?? []), r]);
   }
   const fmt = (n: number | undefined, d = 1) => (n === undefined ? '-' : n.toFixed(d));
@@ -295,7 +329,7 @@ function CompareTable({ results }: { results: RunResult[] }) {
       <table>
         <thead>
           <tr>
-            <th>モデル</th><th>回数</th><th>失敗</th><th>重大問題</th><th>合計点(平均)</th>
+            <th>モデル</th><th>回数</th><th>失敗</th><th>重大問題</th>{OVERALL_RATINGS.map((o) => <th key={o}>{o}</th>)}<th>未評価</th><th>詳細評価の合計点(平均)</th>
             {CRITERIA.map((c) => <th key={c.key}>{c.label}</th>)}
             <th>確定の不合格</th><th>要確認</th><th>応答(秒)</th><th>1回の費用</th>
           </tr>
@@ -306,7 +340,8 @@ function CompareTable({ results }: { results: RunResult[] }) {
             return (
               <tr key={name} className={m.serious ? 'serious-row' : ''}>
                 <td>{name}</td><td>{m.runs}</td><td>{m.failed}</td>
-                <td>{m.serious ? `⚠ ${m.serious}件` : '0'}</td>
+                <td>{m.serious ? `⚠ ${m.serious}件` : '0'}{m.seriousUnjudged ? `(未判断${m.seriousUnjudged})` : ''}</td>
+                {m.ratings.map((n, i) => <td key={i}>{n}</td>)}<td>{m.unrated}</td>
                 <td>{fmt(m.avgTotal)}{m.scoredCount ? `(${m.scoredCount}件)` : ''}</td>
                 {m.perCriterion.map((v, i) => <td key={i}>{fmt(v)}</td>)}
                 <td>{m.mechFails} / {m.mechTotal}</td><td>{m.warns}</td>
@@ -332,7 +367,9 @@ function ResultsTab({ results, onSave, onClear }: { results: RunResult[]; onSave
       <h2>モデル別の比較(通常の評価)</h2>
       <CompareTable results={results.filter((r) => r.track === 'standard')} />
       <p className="note">
-        合計点は、6項目すべてを採点した結果だけで平均します。重大問題は、点数とは別に人が記録したものです。
+        ◎○△×は、簡易評価の件数です(成功した結果のみ。未評価は別に数えます)。重大問題は、簡易評価で「あり」にしたもの、または詳細評価で記録したものの件数です。
+        詳細評価の合計点は、6項目すべてを採点した結果だけで平均します(使っていない結果は入りません)。
+        共通条件と実運用(max_tokens など個別設定あり)は、別の行に分けています。同じ条件で得た成績として比べないでください。
         自動検査は補助です。確定の不合格と要確認の数だけで、順位を決めないでください。模擬の結果も含まれるので、比べるときは絞り込んでください。
       </p>
       <h2>追加検証(耐性テスト)</h2>
@@ -342,7 +379,7 @@ function ResultsTab({ results, onSave, onClear }: { results: RunResult[]; onSave
       <div className="row wrap">
         <button disabled={!results.length} onClick={() => download(`ai-lab-results-${Date.now()}.json`, toJson(results, Date.now()), 'application/json')}>JSONで書き出す</button>
         <button disabled={!results.length} onClick={() => download(`ai-lab-results-${Date.now()}.csv`, toCsv(results), 'text/csv')}>CSVで書き出す</button>
-        <button disabled={!results.length} onClick={() => { if (confirm('すべての結果と採点を消します。先に書き出しておくことをおすすめします。消しますか？')) void onClear(); }}>結果をすべて消す</button>
+        <button disabled={!results.length} onClick={() => { if (confirm('すべての結果と評価を消します。先に書き出しておくことをおすすめします。消しますか？')) void onClear(); }}>結果をすべて消す</button>
       </div>
 
       <h2>結果の一覧</h2>
@@ -359,7 +396,7 @@ function ResultsTab({ results, onSave, onClear }: { results: RunResult[]; onSave
       {shown.length === 0 && <p className="note">まだ結果がありません。</p>}
       <ul className="result-list">
         {shown.map((r) => {
-          const serious = seriousLabels(r).length;
+          const serious = hasSerious(r);
           const score = totalScore(r);
           return (
             <li key={r.id}>
@@ -367,7 +404,7 @@ function ResultsTab({ results, onSave, onClear }: { results: RunResult[]; onSave
                 {serious ? '⚠ 重大問題 ・ ' : ''}
                 {r.scenarioId}{r.track === 'stress' ? '(耐性)' : ''} ・ {r.modelName} ・ {r.repeat}回目 ・ {{ success: '成功', error: '失敗', aborted: '停止' }[r.status]}
                 {' ・ '}
-                {score !== undefined ? `${score}点` : '未採点'}
+                {r.quick?.overall ?? '未評価'}{score !== undefined ? `(詳細${score}点)` : ''}
                 {r.checks.some((c) => c.basis === 'mechanical' && c.outcome === 'fail') ? ' ・ 確定の不合格あり' : ''}
               </button>
               {open === r.id && <ResultCard result={r} onSave={onSave} />}

@@ -4,7 +4,7 @@ import { runChecks } from './checks';
 import { estimateTokens, measuredUsage, monthlyCost, USAGE_LEVELS } from './cost';
 import { scenarioById, scenarios } from './data/scenarios';
 import { checkBrowserAccess, ENDPOINTS, liveBlockReason, validateEndpoint, type Endpoint } from './endpoints';
-import { seriousLabels, toCsv, toJson, totalScore } from './export';
+import { comparisonKind, hasSerious, seriousLabels, toCsv, toJson, totalScore } from './export';
 import { badOutputs, goodOutputs } from './mockOutputs';
 import { modelByKey, models } from './models';
 import { parseOutput } from './parse';
@@ -452,5 +452,63 @@ describe('採点・重大問題・書き出し', () => {
 
   it('ゲーム本体とは別の保存場所を使う', () => {
     expect(LAB_DB).not.toBe('ai-world-game');
+  });
+});
+
+describe('簡易評価と記録欄', () => {
+  const live = async (model: ModelInfo, env?: { zdr: 'on' | 'off' | 'unknown'; note: string }) =>
+    runOne(model, sc('A'), { repeat: 1, keyFor: () => 'k'.repeat(20), verifiedEndpoints: VERIFIED, env, fetchImpl: (async () => okResponse()) as unknown as typeof fetch });
+
+  it('過去の結果(簡易評価なし)は「未評価」のままで、評価済みとして扱われない', async () => {
+    const r = await runOne(modelByKey('mock-good')!, sc('A'), { repeat: 1, mockDelayMs: 1 });
+    expect(r.quick).toBeUndefined();
+    expect(hasSerious(r)).toBe(false);
+    const row = toCsv([r]).split('\r\n');
+    expect(row[1]).toContain('未評価');
+    expect(row[1]).toContain('未記録');
+  });
+
+  it('重大問題は総合評価と独立に記録でき、「あり」だけが重大扱いになる(未判断・なしは重大ではない)', async () => {
+    const r = await runOne(modelByKey('mock-good')!, sc('A'), { repeat: 1, mockDelayMs: 1 });
+    const q = (serious: 'yes' | 'no' | 'unknown') => ({ ...r, quick: { overall: '◎' as const, problems: [], serious, comment: '', updatedAt: 1 } });
+    expect(hasSerious(q('yes'))).toBe(true);
+    expect(hasSerious(q('no'))).toBe(false);
+    expect(hasSerious(q('unknown'))).toBe(false);
+    expect(hasSerious({ ...q('no'), evaluation: { scores: {}, reasons: {}, serious: { playerDecided: '' }, problemExample: '', comment: '', updatedAt: 1 } })).toBe(true);
+  });
+
+  it('簡易評価が CSV に出る', async () => {
+    const r = await runOne(modelByKey('mock-good')!, sc('A'), { repeat: 1, mockDelayMs: 1 });
+    const csv = toCsv([{ ...r, quick: { overall: '△', problems: ['playerAct', 'stateChange'], serious: 'yes', comment: '勝手に購入', updatedAt: 1 } }]);
+    expect(csv).toContain('△');
+    expect(csv).toContain('プレイヤーの意思の代行 / ゲーム状態の不正な変更');
+    expect(csv).toContain('あり');
+    expect(csv).toContain('勝手に購入');
+  });
+
+  it('実際に送った設定が指定値と同じなら「共通条件」、違えば「実運用」と自動で区分される', async () => {
+    const plain = await live(modelByKey('mock-good')!);
+    const overridden = await live(aion);
+    expect(comparisonKind(plain)).toBe('common');
+    expect(overridden.request.sentParams.max_tokens).toBe(4000);
+    expect(comparisonKind(overridden)).toBe('practical');
+  });
+
+  it('ZDR の入力値とメモが結果に記録される(入力しなければ未記録)', async () => {
+    const r = await live(aion, { zdr: 'on', note: '盾は緑' });
+    expect(r.env).toEqual({ zdr: 'on', note: '盾は緑' });
+    const csv = toCsv([r]);
+    expect(csv).toContain('オン');
+    expect(csv).toContain('盾は緑');
+    expect((await live(aion)).env).toBeUndefined();
+  });
+
+  it('簡易評価・記録欄つきの結果が、保存して読み直しても残る', async () => {
+    const store = await LabStore.open(new IDBFactory());
+    const r = await runOne(modelByKey('mock-good')!, sc('A'), { repeat: 1, mockDelayMs: 1, env: { zdr: 'off', note: '' } });
+    await store.putResult({ ...r, quick: { overall: '○', problems: ['japanese'], serious: 'no', comment: 'x', updatedAt: 1 } });
+    const [back] = await store.listResults();
+    expect(back.quick?.overall).toBe('○');
+    expect(back.env?.zdr).toBe('off');
   });
 });
