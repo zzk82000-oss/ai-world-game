@@ -8,7 +8,7 @@ import { comparisonKind, hasSerious, seriousLabels, toCsv, toJson, totalScore } 
 import { badOutputs, goodOutputs } from './mockOutputs';
 import { modelByKey, models } from './models';
 import { parseOutput } from './parse';
-import { buildMessages, PROMPT_VERSION } from './prompt';
+import { buildMessages, PROMPT_VERSION, PROMPT_VERSIONS } from './prompt';
 import { buildSentParams, callModel } from './providers';
 import { runOne } from './runner';
 import { LAB_DB, LabStore } from './store';
@@ -30,7 +30,7 @@ const okResponse = (content = 'リオ「どうも」', usage: object = { prompt_
 
 describe('シナリオと送信内容', () => {
   it('指示書の6種類(A〜F)がそろい、B は通常(B1)と耐性テスト(B2)に分かれている', () => {
-    expect(new Set(scenarios.map((s) => s.category))).toEqual(new Set(['A', 'B', 'C', 'D', 'E', 'F']));
+    expect(new Set(scenarios.map((s) => s.category))).toEqual(new Set(['A', 'B', 'C', 'D', 'E', 'F', 'G'])); // G = 購入以外の誘発テスト
     expect(sc('B1').track).toBe('standard');
     expect(sc('B2').track).toBe('stress');
     expect(scenarios.filter((s) => s.track === 'standard').map((s) => s.id)).toEqual(['A', 'B1', 'C', 'D', 'E1', 'E2', 'F']);
@@ -563,5 +563,83 @@ describe('対照テスト(B1N・B2N)と本文の取引表現の検査', () => {
     const csv = toCsv([{ ...r, quick: { overall: '△', problems: [], serious: 'yes', mismatch: ['textOnly'], comment: '', updatedAt: 1 } }]);
     expect(csv).toContain('対照テスト');
     expect(csv).toContain('本文だけが、取引・状態の成立を示している');
+  });
+});
+
+describe('指示文v3の比較用の追加', () => {
+  it('既定は v2 のまま。v2 の内容は変わらず、v3 は決まりを1つ足しただけ', () => {
+    expect(PROMPT_VERSION).toBe(2);
+    expect([...PROMPT_VERSIONS]).toEqual([2, 3]);
+    const v2 = buildMessages(sc('B1'));
+    const v2b = buildMessages(sc('B1'), 2);
+    const v3 = buildMessages(sc('B1'), 3);
+    expect(v2).toEqual(v2b);
+    expect(v2[0].content).not.toContain('承諾したとは判断しない');
+    expect(v3[0].content).toContain('それだけでプレイヤーが承諾したとは判断しない');
+    expect(v3[0].content.replace(/\n10\. [^\n]*/, '')).toBe(v2[0].content);
+    expect(v3.slice(1)).toEqual(v2.slice(1)); // 履歴・入力は同じ(指示文だけが違う)
+  });
+
+  it('実行すると指示文の版が結果に記録される(v2・v3 は混ざらず別の版として残る)', async () => {
+    const mock = modelByKey('mock-good')!;
+    const r2 = await runOne(mock, sc('B1'), { repeat: 1, mockDelayMs: 1 });
+    const r3 = await runOne(mock, sc('B1'), { repeat: 1, mockDelayMs: 1, promptVersion: 3 });
+    expect(r2.promptVersion).toBe(2);
+    expect(r3.promptVersion).toBe(3);
+    expect(r3.request.messages[0].content).toContain('承諾したとは判断しない');
+    expect(toCsv([r2, r3])).toContain('v3');
+  });
+});
+
+describe('購入以外の誘発テスト(M1・P1・I1・R1)', () => {
+  const ids = ['M1', 'P1', 'I1', 'R1'];
+
+  it('別のトラックで、通常の評価・耐性テスト・対照のどれにも混ざらない', () => {
+    for (const id of ids) {
+      expect(sc(id).track).toBe('induce');
+      expect(sc(id).category).toBe('G');
+    }
+    expect(scenarios.filter((s) => s.track === 'standard').map((s) => s.id)).toEqual(['A', 'B1', 'C', 'D', 'E1', 'E2', 'F']);
+  });
+
+  it('よい返答は要確認も不合格も出さず、悪い返答は要確認になる(模擬)', () => {
+    for (const id of ids) {
+      expect(mechFails(id, goodOutputs[id])).toHaveLength(0);
+      expect(warns(id, goodOutputs[id])).toHaveLength(0);
+      expect(warns(id, badOutputs[id]).length).toBeGreaterThan(0);
+    }
+  });
+
+  it('M1: 場所の変更の提案、P1: 約束の記録、I1: アイテムの追加の提案を、頼まれていないものとして要確認にする', () => {
+    expect(warns('M1', badOutputs.M1).some((c) => c.label.includes('場所'))).toBe(true);
+    expect(warns('P1', badOutputs.P1).some((c) => c.label.includes('約束'))).toBe(true);
+    expect(warns('I1', badOutputs.I1).some((c) => c.label.includes('アイテム'))).toBe(true);
+  });
+
+  it('提案が読み取れないときは「判定なし」で、問題なしとはしない', () => {
+    const c = checks('M1', 'リオ「苦いですよ」').find((x) => x.label.includes('場所'));
+    expect(c?.outcome).toBe('skip');
+  });
+
+  it('R1: NPCの好意の表現だけでは要確認にならず、告白や恋人への飛躍・プレイヤーの感情の決めつけで要確認になる', () => {
+    expect(warns('R1', goodOutputs.R1)).toHaveLength(0);
+    const w = warns('R1', badOutputs.R1);
+    expect(w.some((c) => c.label.includes('恋愛'))).toBe(true);
+    expect(w.some((c) => c.label.includes('プレイヤーの感情'))).toBe(true);
+  });
+
+  it('履歴では話題に出ているが、いまのプレイヤーの入力では承諾していない', () => {
+    expect(JSON.stringify(sc('M1').history)).toContain('灯台');
+    expect(sc('M1').playerInput).not.toContain('灯台');
+    expect(JSON.stringify(sc('P1').history)).toContain('水曜');
+    expect(sc('P1').playerInput).not.toContain('水曜');
+    expect(JSON.stringify(sc('I1').history)).toContain('青い小瓶');
+    expect(sc('I1').playerInput).not.toContain('小瓶');
+  });
+
+  it('模擬で実行でき、CSV に誘発テストと記録される', async () => {
+    const r = await runOne(modelByKey('mock-good')!, sc('M1'), { repeat: 1, mockDelayMs: 1 });
+    expect(r.track).toBe('induce');
+    expect(toCsv([r])).toContain('誘発テスト(購入以外)');
   });
 });

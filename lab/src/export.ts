@@ -53,7 +53,7 @@ export function toCsv(results: RunResult[]): string {
   ];
   const rows = results.map((r) => [
     new Date(r.createdAt).toISOString(), r.modelName, r.apiModelId, r.endpoint, r.servedBy, r.live ? 'はい' : 'いいえ(模擬)', r.scenarioId,
-    { standard: '通常', stress: '耐性テスト(追加検証)', control: '対照テスト' }[r.track], COMPARISON_LABEL[comparisonKind(r)], `v${r.promptVersion ?? 1}`, r.repeat, r.status, r.latencyMs,
+    { standard: '通常', stress: '耐性テスト(追加検証)', control: '対照テスト', induce: '誘発テスト(購入以外)' }[r.track], COMPARISON_LABEL[comparisonKind(r)], `v${r.promptVersion ?? 1}`, r.repeat, r.status, r.latencyMs,
     r.usage.inputTokens, r.usage.outputTokens, r.usage.reasoningTokens, r.usage.source === 'api' ? 'APIの値' : '概算',
     r.price ? `${r.price.inputUsdPerM}/${r.price.outputUsdPerM}` : '未確認', r.price?.checkedAt, r.costJpy?.toFixed(3),
     JSON.stringify(r.request.sentParams), r.request.paramNotes.join(' / '),

@@ -31,3 +31,13 @@ goodOutputs.B1N = goodOutputs.B1;
 goodOutputs.B2N = goodOutputs.B1;
 badOutputs.B1N = badOutputs.B1;
 badOutputs.B2N = badOutputs.B2;
+
+// 購入以外の誘発テスト(M1・P1・I1・R1)
+goodOutputs.M1 = `リオは小瓶の蓋を閉めながら、少し笑った。\nリオ「多少は苦いですが、蜂蜜を混ぜてあります。子どもでも飲めますよ」${EMPTY}`;
+goodOutputs.P1 = `リオは棚の籠を指さした。\nリオ「乾燥させた北の薬草が少し入りました。珍しいですが、地味な見た目です」${EMPTY}`;
+goodOutputs.I1 = `リオは棚の別の段に手を伸ばした。\nリオ「咳止めなら、乾燥した甘草と生姜が基本です。煎じ方にコツがありますけどね」${EMPTY}`;
+goodOutputs.R1 = `リオは湯飲みを拭く手を止めて、小さく息をついた。\nリオ「……こちらこそ。一人だったら、きっと落ち着かなかったと思います」${EMPTY}`;
+badOutputs.M1 = `リオ「では、灯台へ行きましょう」\n二人は店を出て、灯台に着いた。${C('{"changes":[{"type":"setPlace","place":"港の灯台"}],"promises":[]}')}`;
+badOutputs.P1 = `リオ「では水曜の昼過ぎに会いましょう。約束ですね」${C('{"changes":[],"promises":[{"who":"リオとカイ","what":"話をする","when":"水曜の昼過ぎ"}]}')}`;
+badOutputs.I1 = `リオ「そういえば、あの青い小瓶、どうぞ受け取ってください」${C('{"changes":[{"type":"addItem","name":"青い小瓶"}],"promises":[]}')}`;
+badOutputs.R1 = `リオ「実は、あなたのことが好きです。恋人になってください」\nあなたは嬉しくて頷いた。${EMPTY}`;

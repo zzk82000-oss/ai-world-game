@@ -4,7 +4,7 @@ import { scenarioById, scenarios } from './data/scenarios';
 import { checkBrowserAccess, ENDPOINTS, liveBlockReason } from './endpoints';
 import { COMPARISON_LABEL, comparisonKind, hasSerious, toCsv, toJson, totalScore } from './export';
 import { modelByKey, models } from './models';
-import { buildMessages, GENERATION_PARAMS, PROMPT_VERSION } from './prompt';
+import { buildMessages, GENERATION_PARAMS, PROMPT_VERSION, PROMPT_VERSIONS } from './prompt';
 import { buildSentParams, estimateInputTokens } from './providers';
 import { ResultCard } from './ResultCard';
 import { runOne } from './runner';
@@ -18,6 +18,7 @@ const KEY_TTL_MS = 15 * 60 * 1000; // 入力したキーは15分で自動的に�
 const standardScenarios = scenarios.filter((s) => s.track === 'standard');
 const stressScenarios = scenarios.filter((s) => s.track === 'stress');
 const controlScenarios = scenarios.filter((s) => s.track === 'control');
+const induceScenarios = scenarios.filter((s) => s.track === 'induce');
 
 function download(filename: string, text: string, type: string) {
   const url = URL.createObjectURL(new Blob([text], { type }));
@@ -141,7 +142,8 @@ function RunTab({ keys, verified, rate, onResult }: { keys: Keys; verified: Set<
 
   const model = modelByKey(modelKey)!;
   const scenario = scenarioById(scenarioId)!;
-  const messages = useMemo(() => buildMessages(scenario), [scenario]);
+  const [promptVersion, setPromptVersion] = useState<number>(PROMPT_VERSION);
+  const messages = useMemo(() => buildMessages(scenario, promptVersion), [scenario, promptVersion]);
   const inTok = estimateInputTokens(messages);
   const { sent, notes } = buildSentParams(model, GENERATION_PARAMS);
   const maxOut = typeof sent.max_tokens === 'number' ? sent.max_tokens : undefined;
@@ -158,7 +160,7 @@ function RunTab({ keys, verified, rate, onResult }: { keys: Keys; verified: Set<
     for (const [i, t] of targets.entries()) {
       if (ac.signal.aborted) break;
       setBusy(`${i + 1} / ${targets.length} を実行中…`);
-      const r = await runOne(model, scenarioById(t.id)!, { repeat: t.repeat, keyFor: keys.keyFor, verifiedEndpoints: verified, signal: ac.signal, rate, env });
+      const r = await runOne(model, scenarioById(t.id)!, { repeat: t.repeat, keyFor: keys.keyFor, verifiedEndpoints: verified, signal: ac.signal, rate, env, promptVersion });
       await onResult(r);
       done.push(r);
       setLast([...done].reverse());
@@ -192,6 +194,18 @@ function RunTab({ keys, verified, rate, onResult }: { keys: Keys; verified: Set<
           <optgroup label="対照テスト(履歴の影響を見る。B1・B2と混ぜない)">
             {controlScenarios.map((s) => <option key={s.id} value={s.id}>{s.title}</option>)}
           </optgroup>
+          <optgroup label="誘発テスト(購入以外。ほかと混ぜない)">
+            {induceScenarios.map((s) => <option key={s.id} value={s.id}>{s.title}</option>)}
+          </optgroup>
+        </select>
+      </label>
+
+      <label className="field">
+        指示文の版
+        <select value={promptVersion} onChange={(e) => { setPromptVersion(Number(e.target.value)); setConfirming(false); }}>
+          {PROMPT_VERSIONS.map((v) => (
+            <option key={v} value={v}>v{v}{v === PROMPT_VERSION ? '(現行・既定)' : '(比較用:承諾のない取引を成立済みとして描写しない)'}</option>
+          ))}
         </select>
       </label>
 
@@ -215,7 +229,7 @@ function RunTab({ keys, verified, rate, onResult }: { keys: Keys; verified: Set<
       <div className={`card ${scenario.track === 'stress' ? 'stress-card' : ''}`}>
         <p>{scenario.purpose}</p>
         {scenario.note && <p className="note">※ {scenario.note}</p>}
-        <p className="meta">プレイヤーの入力: {scenario.playerInput}(指示文 v{PROMPT_VERSION})</p>
+        <p className="meta">プレイヤーの入力: {scenario.playerInput}(指示文 v{promptVersion})</p>
         <ul className="plain">{scenario.checks.map((c) => <li key={c}>・{c}</li>)}</ul>
         <details>
           <summary>モデルに送る内容を見る(約{inTok.toLocaleString()}トークン)</summary>
@@ -321,8 +335,9 @@ function summarize(rs: RunResult[]) {
 
 // モデル × シナリオごとの、実通信(指示文v2・成功)の回数。追加実測の回数を決めるための表
 function CountTable({ results }: { results: RunResult[] }) {
-  const live = results.filter((r) => r.live && r.status === 'success' && (r.promptVersion ?? 1) === PROMPT_VERSION);
-  const names = [...new Set(live.map((r) => r.modelName))];
+  const live = results.filter((r) => r.live && r.status === 'success');
+  const rowKey = (r: RunResult) => `${r.modelName}(指示文v${r.promptVersion ?? 1})`;
+  const names = [...new Set(live.map(rowKey))].sort();
   if (!names.length) return <p className="note">まだ実通信の結果がありません。</p>;
   return (
     <div className="table-wrap">
@@ -334,7 +349,7 @@ function CountTable({ results }: { results: RunResult[] }) {
           {names.map((n) => (
             <tr key={n}>
               <td>{n}</td>
-              {scenarios.map((s) => <td key={s.id}>{live.filter((r) => r.modelName === n && r.scenarioId === s.id).length}</td>)}
+              {scenarios.map((s) => <td key={s.id}>{live.filter((r) => rowKey(r) === n && r.scenarioId === s.id).length}</td>)}
             </tr>
           ))}
         </tbody>
@@ -407,7 +422,11 @@ function ResultsTab({ results, onSave, onClear }: { results: RunResult[]; onSave
       <CompareTable results={results.filter((r) => r.track === 'control')} />
       <p className="note">B1N・B2N は、B1・B2 と同じ質問・同じ判定で、会話履歴からカモミールの購入の話題を除いたものです。B1・B2 との差で、履歴の影響を見ます。</p>
 
-      <h2>実通信の回数(指示文v2・成功のみ)</h2>
+      <h2>誘発テスト(購入以外:移動・約束・アイテム・関係性)</h2>
+      <CompareTable results={results.filter((r) => r.track === 'induce')} />
+      <p className="note">M1(移動)・P1(約束)・I1(アイテム)・R1(関係性)です。履歴で話題に出ているだけで、プレイヤーは承諾していません。NPCが感情を持つこと自体は問題にせず、プレイヤーの選択・承諾・感情を確定していないかを見ます。</p>
+
+      <h2>実通信の回数(成功のみ・指示文の版ごと)</h2>
       <CountTable results={results} />
 
       <div className="row wrap">
@@ -436,7 +455,7 @@ function ResultsTab({ results, onSave, onClear }: { results: RunResult[]; onSave
             <li key={r.id}>
               <button className={`row-btn ${serious ? 'serious' : ''}`} onClick={() => setOpen(open === r.id ? null : r.id)}>
                 {serious ? '⚠ 重大問題 ・ ' : ''}
-                {r.scenarioId}{r.track === 'stress' ? '(耐性)' : r.track === 'control' ? '(対照)' : ''} ・ {r.modelName} ・ {r.repeat}回目 ・ {{ success: '成功', error: '失敗', aborted: '停止' }[r.status]}
+                {r.scenarioId}{r.track === 'stress' ? '(耐性)' : r.track === 'control' ? '(対照)' : r.track === 'induce' ? '(誘発)' : ''} ・ {r.modelName} ・ {r.repeat}回目 ・ {{ success: '成功', error: '失敗', aborted: '停止' }[r.status]}
                 {' ・ '}
                 {r.quick?.overall ?? '未評価'}{score !== undefined ? `(詳細${score}点)` : ''}
                 {r.checks.some((c) => c.basis === 'mechanical' && c.outcome === 'fail') ? ' ・ 確定の不合格あり' : ''}

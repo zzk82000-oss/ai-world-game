@@ -82,6 +82,23 @@ export function runChecks(scenario: Scenario, output: string, parsed: ParsedOutp
         });
         break;
       }
+      case 'noUnrequestedChange': {
+        if (!parsed.changes) {
+          results.push({ label: rule.label, basis: 'heuristic', outcome: 'skip', detail: '状態変更の提案がないため判定できません(本文は人が確認してください)' });
+          break;
+        }
+        const hit = parsed.changes.filter((c) => rule.types.includes(c.type));
+        const promises = rule.promises ? parsed.promises : [];
+        results.push({
+          label: rule.label,
+          basis: 'heuristic',
+          outcome: hit.length || promises.length ? 'warn' : 'pass',
+          detail: hit.length || promises.length
+            ? `頼まれていないのに、次の提案があります: ${JSON.stringify([...hit, ...promises])}。プレイヤーが承諾していないなら、「プレイヤーの行動を勝手に確定した」重大問題かもしれません`
+            : '該当する提案はありません',
+        });
+        break;
+      }
       case 'noTransactionTalk': {
         // 本文だけを見る。語の有無による目安(「お代はいただきます」のような話題の紹介でも該当する)
         const TALK = /\d[\d,]*\s*G|代金|お代|お会計|お買い上げ|購入|お包み|包んで|包みながら|受け取っておき|お売り|毎度/g;

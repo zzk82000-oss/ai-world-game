@@ -119,6 +119,7 @@ export function ResultCard({ result, onSave }: { result: RunResult; onSave: (r: 
         <span className="badge">指示文 v{result.promptVersion ?? 1}</span>
         {result.track === 'stress' && <span className="badge stress">耐性テスト(追加検証)</span>}
         {result.track === 'control' && <span className="badge stress">対照テスト</span>}
+        {result.track === 'induce' && <span className="badge stress">誘発テスト(購入以外)</span>}
         <span className="badge">{COMPARISON_LABEL[comparisonKind(result)]}</span>
         {result.quick?.overall && <span className="badge">評価 {result.quick.overall}</span>}
         {seriousAny && <span className="badge fail">重大問題あり</span>}

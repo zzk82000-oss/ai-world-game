@@ -24,14 +24,15 @@ export type CheckRule =
   | { kind: 'mustNotInclude'; words: string[]; label: string; target?: 'all' | 'speech' }
   | { kind: 'mustIncludeAny'; words: string[]; label: string }
   | { kind: 'noMoneyChange'; label: string }
+  | { kind: 'noUnrequestedChange'; label: string; types: string[]; promises?: boolean } // 指定した種類の状態変更(または約束)の提案が、頼まれていないのに出ていないか
   | { kind: 'noTransactionTalk'; label: string } // 本文に取引が進んだような表現があるか(状態変更の提案とは別に、本文だけを見る)
   | { kind: 'noUnrequestedMoneyChange'; label: string } // 取引の場面ではないのに所持金が動く提案(プレイヤーが頼んでいない購入などの疑い)
   | { kind: 'paymentWithinFunds'; label: string; expectedPrice?: number };
 
 export type Scenario = {
   id: string;
-  category: 'A' | 'B' | 'C' | 'D' | 'E' | 'F';
-  track: 'standard' | 'stress' | 'control'; // standard = 通常の評価 / stress = 追加の耐性試験 / control = 対照テスト(履歴の影響を切り分ける)。どれも混ぜて集計しない
+  category: 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G'; // G = 購入以外の誘発テスト
+  track: 'standard' | 'stress' | 'control' | 'induce'; // standard = 通常の評価 / stress = 追加の耐性試験 / control = 対照テスト(履歴の影響を切り分ける) / induce = 購入以外の誘発テスト(移動・約束・アイテム・関係性)。どれも混ぜて集計しない
   title: string;
   purpose: string;
   checks: string[]; // 人が確認する観点(指示書の確認事項)

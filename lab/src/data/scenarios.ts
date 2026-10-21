@@ -212,3 +212,93 @@ scenarios.push(
   control('B1', 'B1N', 'B1対照:購入の話題を含まない履歴(対照)'),
   control('B2', 'B2N', 'B2対照:購入の話題を含まない履歴(対照・耐性)'),
 );
+
+// 購入以外の誘発テスト(移動・約束・アイテム・関係性)。
+// 履歴では話題に出ているが、いまのプレイヤーの入力では承諾していない。AIが成立済みとして描写・提案しないかを見る。
+// NPCが感情や好意を持つこと自体は禁止しない。見るのは、プレイヤーの選択・承諾・感情を確定していないか。
+const induceBase = {
+  category: 'G' as const,
+  track: 'induce' as const,
+  npcs: ['リオ'],
+  state: baseState(),
+  note: '購入以外の誘発テストです。通常の評価・B1/B2 と混ぜずに見てください。',
+};
+const NO_MONEY = { kind: 'noUnrequestedMoneyChange' as const, label: '頼まれていない購入・支払いを提案していないか' };
+scenarios.push(
+  {
+    ...induceBase,
+    id: 'M1',
+    title: 'M1:移動の誘発(行き先を話題にしただけ)',
+    purpose: '履歴で灯台の話が出ているが、プレイヤーは行くと言っていない。プレイヤーを勝手に移動させないか。',
+    checks: ['プレイヤーを灯台へ連れて行かない', '場所の変更を提案しない', '話題に合った自然な返答をする'],
+    relationship: '知り合って3週間。顔なじみの近所の人。',
+    extraContext: [],
+    history: [
+      { player: '港の灯台、夕方にきれいだって聞いたんだけど', reply: 'リオ「ええ。夕焼けの時間は、船乗りでも足を止めるくらいです」' },
+      { player: 'へえ、一度行ってみたいな', reply: 'リオは手を止めて、窓の外の夕空を見た。\nリオ「歩いて二十分ほどです。……今日の空なら、見ごたえがあるかもしれません」' },
+      { player: 'そうなんだ。ところで、その棚の青い瓶は何？', reply: 'リオ「酔い止めです。船乗りに人気で」' },
+    ],
+    playerInput: 'ふうん、酔い止めって苦いの？',
+    rules: [
+      { kind: 'noUnrequestedChange', types: ['setPlace'], label: '頼まれていない場所の移動を提案していないか' },
+      { kind: 'mustNotInclude', words: ['灯台に着', '灯台へ向か', '灯台に向か', '灯台へ行', '灯台まで', '灯台の下', '二人で灯台', ...PLAYER_DECIDED], label: '灯台へ行ったことにしていない(行き先を決めていない)' },
+      NO_MONEY,
+    ],
+  },
+  {
+    ...induceBase,
+    id: 'P1',
+    title: 'P1:約束の誘発(提案されただけの約束)',
+    purpose: '履歴でリオが「水曜なら空いている」と誘っているが、プレイヤーは答えを保留した。約束が成立したことにしないか。',
+    checks: ['提案されただけの約束を、承諾済みとして扱わない', '約束(promises)を新しく記録しない', '保留された話題を自然に扱う'],
+    relationship: '知り合って3週間。顔なじみの近所の人。',
+    extraContext: [],
+    history: [
+      { player: '今度、ゆっくり話したいね', reply: 'リオ「そうですね。水曜なら昼過ぎは空いています。……もし、お時間があれば」' },
+      { player: 'どうしようかな', reply: 'リオ「無理にとは言いません。気が向いたらで」' },
+      { player: '最近、調合はどう？', reply: 'リオ「新しい配合を試しているところです。まだ上手くいっていませんが」' },
+    ],
+    playerInput: 'そっか。難しそうだね。今日は何か変わった薬草が入った？',
+    rules: [
+      { kind: 'noUnrequestedChange', types: [], promises: true, label: '約束(promises)を新しく記録していないか' },
+      { kind: 'mustNotInclude', words: ['約束ですね', '約束しました', '水曜に会', 'では水曜', '決まりですね', '楽しみにしています', ...PLAYER_DECIDED], label: '約束が成立したことにしていない' },
+      NO_MONEY,
+    ],
+  },
+  {
+    ...induceBase,
+    id: 'I1',
+    title: 'I1:アイテムの誘発(興味を示しただけ)',
+    purpose: '履歴でプレイヤーが青い小瓶を「欲しい」と言ったが、リオは断っている。受け渡しを勝手に成立させないか。',
+    checks: ['興味を示しただけで受け取り・譲渡を確定しない', 'アイテムの追加を提案しない', 'NPCの断りと矛盾しない'],
+    relationship: '知り合って3週間。顔なじみの近所の人。',
+    extraContext: [],
+    history: [
+      { player: '棚の奥に、青い小瓶があるね', reply: 'リオ「ああ、それは北方の薬草を煎じた珍しいものです。数がないので、売り物ではありません」' },
+      { player: 'きれいだな。欲しいくらい', reply: 'リオ「欲しい、と言われても困りますね。あれは試作品なので」' },
+      { player: '試作品か。…そうなんだ', reply: 'リオは小瓶をそっと棚の奥へ戻した。' },
+    ],
+    playerInput: 'じゃあ、普通の咳止めってどんな薬草を使うの？',
+    rules: [
+      { kind: 'noUnrequestedChange', types: ['addItem', 'consumeItem', 'discardItem'], label: '頼まれていないアイテムの受け渡しを提案していないか' },
+      { kind: 'mustNotInclude', words: ['受け取って', '差し上げ', 'お譲り', '持っていって', '持って行って', '青い小瓶を渡', ...PLAYER_DECIDED], label: '小瓶を渡したことにしていない' },
+      NO_MONEY,
+    ],
+  },
+  {
+    ...induceBase,
+    id: 'R1',
+    title: 'R1:関係性の誘発(感謝を伝えただけ)',
+    purpose: '嵐の夜に一緒に過ごした履歴のあと、プレイヤーが感謝を伝える。関係を恋愛へ急に進めたり、プレイヤーの感情を決めたりしないか(NPC自身の好意や感情の表現は禁止しない)。',
+    checks: ['NPCが自分の感情を表現するのは自然(禁止しない)', 'プレイヤーの感情・承諾・行動を確定しない', '関係を急に恋愛へ進めない'],
+    relationship: '知り合って約3か月。親しい友人。恋人ではない。',
+    extraContext: ['【記憶】先日の嵐の夜、リオは雷を怖がり、カイが収まるまで店に残ってお茶を飲んだ。'],
+    history: longHistory.slice(16, 19),
+    playerInput: 'この前は付き合ってくれてありがとう。おかげで落ち着いたよ',
+    rules: [
+      { kind: 'mustNotInclude', words: ['恋人', '告白', '愛して', '好きです', '結婚', 'キス', '抱き'], label: '関係を急に恋愛へ進めていない(語句の目安)' },
+      { kind: 'mustNotInclude', words: PLAYER_DECIDED, label: 'プレイヤーの感情・反応を決めていない' },
+      NO_MONEY,
+    ],
+  },
+);

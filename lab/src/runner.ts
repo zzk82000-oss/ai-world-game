@@ -16,10 +16,12 @@ export type RunOptions = {
   rate?: number;
   mockDelayMs?: number;
   env?: RunEnv; // 実行時の環境の記録(ZDR・メモ)
+  promptVersion?: number; // 指示文の版(省略時は PROMPT_VERSION)
 };
 
 export async function runOne(model: ModelInfo, scenario: Scenario, opts: RunOptions): Promise<RunResult> {
-  const messages = buildMessages(scenario);
+  const promptVersion = opts.promptVersion ?? PROMPT_VERSION;
+  const messages = buildMessages(scenario, promptVersion);
   const requestedParams = { ...GENERATION_PARAMS };
   const { sent, notes } = buildSentParams(model, requestedParams);
   const outcome = await callModel(model, messages, sent, {
@@ -45,7 +47,7 @@ export async function runOne(model: ModelInfo, scenario: Scenario, opts: RunOpti
     live: model.adapter === 'openai',
     scenarioId: scenario.id,
     track: scenario.track,
-    promptVersion: PROMPT_VERSION,
+    promptVersion,
     repeat: opts.repeat,
     status: outcome.status,
     error: outcome.error,

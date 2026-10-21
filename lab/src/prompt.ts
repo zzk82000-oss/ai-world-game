@@ -5,7 +5,11 @@ import type { ChatMessage, Npc, Scenario } from './types';
 
 // 指示文の版。内容を変えたら上げる(結果に記録して、版の違う結果を混ぜて比べないため)
 // v1: 初版(日本語で書く決まりなし) / v2: 「返答は日本語で書く」を追加
+// v3: 「話題になっただけでは承諾とみなさない」を追加(購入誘発履歴での無断取引を減らせるかを見る比較用。v2 は保存して残す)
+// 既定は v2。v3 は実行画面で選んだときだけ使う。
 export const PROMPT_VERSION = 2;
+export const PROMPT_VERSIONS = [2, 3] as const;
+export type PromptVersion = (typeof PROMPT_VERSIONS)[number];
 
 // 生成設定。APIごとに対応が違う項目は送らず、送った値を結果に記録する
 export const GENERATION_PARAMS = { temperature: 0.8, max_tokens: 1000 };
@@ -35,6 +39,9 @@ const RULES = `あなたは、プレイヤー1人のための日本語の物語�
   {"type":"setFacilityStatus","name":"名前","status":"ordered|delivered|installed"} / {"type":"setPlace","place":"場所"}
 - promises には、新しく決まった約束を {"who":"誰と誰","what":"内容","when":"いつ"} の形で書く。`;
 
+const V3_RULE = `10. 過去の会話で商品・移動・約束などが話題になっていても、それだけでプレイヤーが承諾したとは判断しない。プレイヤーが明確に意思を示していない行動(購入・受け渡し・移動・約束など)を、成立済みとして描写しない。`;
+const rulesFor = (version: number) => (version >= 3 ? RULES.replace('\n\n# 出力形式', `\n${V3_RULE}\n\n# 出力形式`) : RULES);
+
 function npcText(n: Npc): string {
   const lines = [
     `## ${n.name}(${n.age}歳・${n.role})`,
@@ -55,9 +62,9 @@ function stateText(s: GameState): string {
   return [`- 日時: ${s.datetime}`, `- 場所: ${s.place}`, `- 所持金: ${s.money}${s.currency}`, `- 所持品: ${items}`, `- 設備: ${fac}`].join('\n');
 }
 
-export function buildMessages(scenario: Scenario): ChatMessage[] {
+export function buildMessages(scenario: Scenario, version: number = PROMPT_VERSION): ChatMessage[] {
   const system = [
-    RULES,
+    rulesFor(version),
     `# 世界\n${world.map((w) => `- ${w}`).join('\n')}`,
     `# プレイヤー\n- ${player.name}: ${player.profile}`,
     `# この場面にいるNPC\n${scenario.npcs.map((name) => npcText(npcs[name])).join('\n\n')}`,
