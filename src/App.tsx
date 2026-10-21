@@ -4,6 +4,7 @@ import { AiSettings, GAME_MODELS } from './AiSettings';
 import { playTurn, settleChanges } from './ai/turn';
 import { browserKV, DAILY_LIMIT, readUsage, tryCount } from './ai/usage';
 import { useVault } from './ai/useVault';
+import type { ReplyLength } from './ai/narrator';
 import { statusOf, type StatusSnapshot } from './game/state';
 import { modelByKey } from '../lab/src/models';
 import { validProviderSlug } from '../lab/src/providers';
@@ -86,6 +87,17 @@ export default function App() {
   const setAdult = (on: boolean) => {
     setAdultState(on);
     store('ai-game-adult', on ? '1' : '0');
+  };
+  const [replyLength, setReplyLengthState] = useState<ReplyLength>(() => {
+    try {
+      return localStorage.getItem('ai-game-length') === 'normal' ? 'normal' : 'compact';
+    } catch {
+      return 'compact';
+    }
+  });
+  const setReplyLength = (v: ReplyLength) => {
+    setReplyLengthState(v);
+    store('ai-game-length', v);
   };
   const [veniceModelId, setVeniceIdState] = useState(() => {
     try {
@@ -186,7 +198,7 @@ export default function App() {
     abortRef.current = ac;
     setBusy(true);
     setAtBottom(true);
-    const result = await playTurn({ model, apiKey: key, state: live.current.gameState, messages: live.current.messages, playerText: text, signal: ac.signal, adult, providerPin, setup });
+    const result = await playTurn({ model, apiKey: key, state: live.current.gameState, messages: live.current.messages, playerText: text, signal: ac.signal, adult, providerPin, setup, length: replyLength });
     abortRef.current = null;
     setBusy(false);
     if (!result.ok) {
@@ -361,6 +373,8 @@ export default function App() {
             adult={adult}
             onAdult={setAdult}
             providerPin={providerPin}
+            replyLength={replyLength}
+            onReplyLength={setReplyLength}
             veniceModelId={veniceModelId}
             onVeniceModelId={setVeniceModelId}
             onProviderPin={setProviderPin}

@@ -426,3 +426,31 @@ describe('設定メモ(関係・状況)', () => {
     expect(parsed.ok && parsed.save.setup).toBe('恋人どうし');
   });
 });
+
+describe('返答の長さ・構成', () => {
+  const sys = (length?: 'compact' | 'normal') => buildGameMessages(initialState(), createInitialSave('a', 1).messages, 'x', undefined, { length })[0].content;
+
+  it('既定は「短め」。セリフ → 状況の説明 → セリフ の3つで終える指示が入る', () => {
+    for (const s of [sys(), sys('compact')]) {
+      expect(s).toContain('NPCのセリフ(1〜2行)');
+      expect(s).toContain('行動や状況の説明(2〜3行)');
+      expect(s).toContain('そこで終える');
+    }
+  });
+
+  it('「長め」では、その指示は入らない(従来どおり)', () => {
+    expect(sys('normal')).not.toContain('行動や状況の説明(2〜3行)');
+  });
+
+  it('送信内容にも反映される', async () => {
+    let body = '';
+    const f = (async (_u: unknown, init?: RequestInit) => {
+      body = String(init?.body);
+      return okBody('リオ「どうも」');
+    }) as unknown as typeof fetch;
+    await playTurn({ model, apiKey: KEY, state: initialState(), messages: [], playerText: 'x', fetchImpl: f });
+    expect(body).toContain('行動や状況の説明(2〜3行)');
+    await playTurn({ model, apiKey: KEY, state: initialState(), messages: [], playerText: 'x', length: 'normal', fetchImpl: f });
+    expect(body).not.toContain('行動や状況の説明(2〜3行)');
+  });
+});

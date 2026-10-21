@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { DAILY_LIMIT } from './ai/usage';
 import type { VaultStatus } from './ai/useVault';
-import { ADULT_MIN_AGE } from './ai/narrator';
+import { ADULT_MIN_AGE, type ReplyLength } from './ai/narrator';
 import { MIN_PASSPHRASE, type VaultEndpoint } from './ai/vault';
 import { validProviderSlug } from '../lab/src/providers';
 
@@ -28,6 +28,8 @@ type Props = {
   onProviderPin: (v: string) => void;
   veniceModelId: string;
   onVeniceModelId: (v: string) => void;
+  replyLength: ReplyLength;
+  onReplyLength: (v: ReplyLength) => void;
   onBack: () => void;
 };
 
@@ -88,7 +90,7 @@ function KeyBox({ ep, status, onRegister, onForget, show }: { ep: VaultEndpoint;
   );
 }
 
-export function AiSettings({ statuses, onRegister, onUnlock, onLock, onForget, modelKey, onModel, usage, adult, onAdult, providerPin, onProviderPin, veniceModelId, onVeniceModelId, onBack }: Props) {
+export function AiSettings({ statuses, onRegister, onUnlock, onLock, onForget, modelKey, onModel, usage, adult, onAdult, providerPin, onProviderPin, veniceModelId, onVeniceModelId, replyLength, onReplyLength, onBack }: Props) {
   const [pass, setPass] = useState('');
   const [msg, setMsg] = useState('');
   const [isError, setIsError] = useState(false);
@@ -135,6 +137,12 @@ export function AiSettings({ statuses, onRegister, onUnlock, onLock, onForget, m
           <p className="note">IDが違うと、送信時に「モデルが見つかりません」のようなエラーになります(費用はかかりません)。料金は、Venice のページで確認してください(費用の概算は、この欄では計算しません)。</p>
         </>
       )}
+
+      <h3>返答の長さ</h3>
+      <select value={replyLength} onChange={(e) => onReplyLength(e.target.value as ReplyLength)}>
+        <option value="compact">短め(セリフ → 状況の説明 → セリフ で終える・既定)</option>
+        <option value="normal">長め(従来どおり・AIにおまかせ)</option>
+      </select>
 
       <h3>成人向けモード</h3>
       <label className="check">

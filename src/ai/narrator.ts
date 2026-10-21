@@ -24,10 +24,16 @@ const ADULT_NOTES = `# 成人向けモード(有効)
 - 人物の話し方(性別・一人称・口調)を、場面が変わっても保つ。
 - 人物の人格・口調・関係性の積み重ねを保つ。`;
 
+// 返答の長さ・構成。compact(既定)は、1回の返答を「セリフ → 行動や状況の説明 → セリフ」の3つに収める
+export type ReplyLength = 'compact' | 'normal';
+const COMPACT_NOTES = `- 返答の構成は、次の3つだけにして、そこで終える(だらだら続けない)。
+  ①NPCのセリフ(1〜2行) ②行動や状況の説明(2〜3行) ③NPCのセリフ(1〜2行)
+  「説明→セリフ」を何度も繰り返して長くしない。複数のNPCが話すときも、この3つの中に収める。`;
+
 export const blocksToText = (blocks: Block[]) => blocks.map((b) => (b.type === 'speech' ? `${b.speaker}「${b.text}」` : b.text)).join('\n');
 
 // NPCの秘密は、AIには渡さない(1つのAIが全員を演じるため、他人の秘密を漏らさないようにする)
-export function buildGameMessages(state: GameState, history: Message[], playerText: string, maxTurns = MAX_HISTORY_TURNS, opts: { adult?: boolean; setup?: string } = {}): ChatMessage[] {
+export function buildGameMessages(state: GameState, history: Message[], playerText: string, maxTurns = MAX_HISTORY_TURNS, opts: { adult?: boolean; setup?: string; length?: ReplyLength } = {}): ChatMessage[] {
   // 先頭のAIの返答(導入)は、プレイヤーの発言に対する返答ではないので、システムの説明に入れる
   const opening = history[0]?.role === 'ai' ? (history[0] as Extract<Message, { role: 'ai' }>) : undefined;
   const rest = opening ? history.slice(1) : history;
@@ -38,6 +44,7 @@ export function buildGameMessages(state: GameState, history: Message[], playerTe
     rulesFor(GAME_PROMPT_VERSION),
     GAME_NOTES,
     opts.adult ? ADULT_NOTES : '',
+    (opts.length ?? 'compact') === 'compact' ? COMPACT_NOTES : '',
     `# 世界\n${world.map((w) => `- ${w}`).join('\n')}`,
     `# プレイヤー\n- ${player.name}: ${player.profile}`,
     `# 町の人々\n${Object.values(ALL_NPCS).map((n) => npcText(n, false) + (opts.adult && n.age < ADULT_MIN_AGE ? `\n- 【${ADULT_MIN_AGE}歳未満: 性的な場面には、どんな場合も関わらせない】` : '')).join('\n\n')}`,
