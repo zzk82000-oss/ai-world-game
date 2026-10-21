@@ -168,7 +168,7 @@ export const models: ModelInfo[] = [
     structuredOutput: '関数呼び出し・JSONの型の強制に対応(Flash版などのページに記載)',
     streaming: 'OpenRouterの標準機能として可',
     contract: 'OpenRouterの前払いクレジット。',
-    adultTerms: 'OpenRouterの裏で処理する事業者ごとに異なり、未確認。',
+    adultTerms: 'OpenRouter規約(第6・7条・2026-10-21確認): 成人向けフィクションを直接禁止する条文は見当たらない。ただし、モデル・提供元の規約に従う義務(7条1・8)、遮断できる権限(6.7)、ジェイルブレイク禁止(7条11)がある。Wafer規約(2026-05-05版・2026-10-21確認): 成人向けの禁止は書かれておらず、未成年の性的表現・違法・悪用を禁止(第3条)。上流モデルのライセンスに従う(第5条)。上流モデルのライセンスと、Waferのプライバシーポリシー(保存の扱い)は未確認。実際の挙動は未検証。',
     dataPolicy: '事業者ごとに異なり、未確認。',
     notes: 'Aion と NovelAI の元になっているのもGLM系。OpenRouterのページに「large-scale reasoning model」とある。提供元が複数あり、OpenRouterが自動で振り分ける。',
     sources: ['https://openrouter.ai/z-ai/glm-5.3'],
