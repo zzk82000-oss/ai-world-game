@@ -3,6 +3,8 @@ import { createInitialSave, initialState } from './game/initial';
 import { importAsNew, newId, parseBackup, serializeBackup, SAVE_FORMAT, type SaveData } from './game/save';
 import type { GameState } from './game/state';
 import { SaveStore } from './game/storage';
+import type { Npc } from '../lab/src/types';
+import type { Player } from './game/cast';
 import type { Message } from './types';
 
 export type SaveStatus = 'saved' | 'saving' | 'error' | 'unavailable';
@@ -23,18 +25,22 @@ export function useGameSave() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [draft, setDraft] = useState('');
   const [setup, setSetup] = useState('');
+  const [characters, setCharacters] = useState<Npc[] | undefined>(undefined);
+  const [playerInfo, setPlayerInfo] = useState<Player | undefined>(undefined);
 
   const storeRef = useRef<SaveStore | null>(null);
   const metaRef = useRef<Meta>({ id: '', name: '', createdAt: 0 });
-  const lastSaved = useRef<{ state: GameState; messages: Message[]; draft: string; setup: string } | null>(null);
-  const latest = useRef({ gameState, messages, draft, setup });
-  latest.current = { gameState, messages, draft, setup };
+  const lastSaved = useRef<{ state: GameState; messages: Message[]; draft: string; setup: string; characters?: Npc[]; playerInfo?: Player } | null>(null);
+  const latest = useRef({ gameState, messages, draft, setup, characters, playerInfo });
+  latest.current = { gameState, messages, draft, setup, characters, playerInfo };
   const chain = useRef<Promise<void>>(Promise.resolve());
 
   const adopt = useCallback((save: SaveData, draftText: string) => {
     metaRef.current = { id: save.id, name: save.name, createdAt: save.createdAt };
-    lastSaved.current = { state: save.state, messages: save.messages, draft: draftText, setup: save.setup ?? '' };
+    lastSaved.current = { state: save.state, messages: save.messages, draft: draftText, setup: save.setup ?? '', characters: save.characters, playerInfo: save.player };
     setSetup(save.setup ?? '');
+    setCharacters(save.characters);
+    setPlayerInfo(save.player);
     setGameState(save.state);
     setMessages(save.messages);
     setDraft(draftText);
@@ -107,10 +113,10 @@ export function useGameSave() {
     if (!store || !lastSaved.current) return chain.current;
     const cur = latest.current;
     const prev = lastSaved.current;
-    const stateChanged = cur.gameState !== prev.state || cur.messages !== prev.messages || cur.setup !== prev.setup;
+    const stateChanged = cur.gameState !== prev.state || cur.messages !== prev.messages || cur.setup !== prev.setup || cur.characters !== prev.characters || cur.playerInfo !== prev.playerInfo;
     const draftChanged = cur.draft !== prev.draft;
     if (!stateChanged && !draftChanged) return chain.current;
-    lastSaved.current = { state: cur.gameState, messages: cur.messages, draft: cur.draft, setup: cur.setup };
+    lastSaved.current = { state: cur.gameState, messages: cur.messages, draft: cur.draft, setup: cur.setup, characters: cur.characters, playerInfo: cur.playerInfo };
     const meta = metaRef.current;
     setStatus('saving');
     chain.current = chain.current
@@ -125,6 +131,8 @@ export function useGameSave() {
             state: cur.gameState,
             messages: cur.messages,
             ...(cur.setup ? { setup: cur.setup } : {}),
+            ...(cur.characters ? { characters: cur.characters } : {}),
+            ...(cur.playerInfo ? { player: cur.playerInfo } : {}),
           });
         }
         if (draftChanged) await store.putDraft(meta.id, cur.draft);
@@ -142,7 +150,7 @@ export function useGameSave() {
     if (!ready) return;
     const t = setTimeout(() => void writeNow(), DEBOUNCE_MS);
     return () => clearTimeout(t);
-  }, [ready, gameState, messages, draft, setup, writeNow]);
+  }, [ready, gameState, messages, draft, setup, characters, playerInfo, writeNow]);
 
   // 画面を閉じる・別アプリに移るときは、待たずに保存する
   useEffect(() => {
@@ -217,6 +225,8 @@ export function useGameSave() {
         state: cur.gameState,
         messages: cur.messages,
         ...(cur.setup ? { setup: cur.setup } : {}),
+        ...(cur.characters ? { characters: cur.characters } : {}),
+        ...(cur.playerInfo ? { player: cur.playerInfo } : {}),
       },
       now.getTime(),
     );
@@ -240,7 +250,7 @@ export function useGameSave() {
 
   return {
     ready, status, notice, setNotice, saves, activeId,
-    gameState, setGameState, messages, setMessages, draft, setDraft, setup, setSetup,
+    gameState, setGameState, messages, setMessages, draft, setDraft, setup, setSetup, characters, setCharacters, playerInfo, setPlayerInfo,
     switchTo, createNew, deleteSaves, exportBackup, importBackup,
   };
 }

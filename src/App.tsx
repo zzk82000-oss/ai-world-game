@@ -11,6 +11,7 @@ import { validProviderSlug } from '../lab/src/providers';
 import type { ModelInfo } from '../lab/src/types';
 import { RichText } from './RichText';
 import { SaveManager } from './SaveManager';
+import { CharacterEditor } from './CharacterEditor';
 import { SetupEditor } from './SetupEditor';
 import { useGameSave } from './useGameSave';
 import './App.css';
@@ -54,7 +55,7 @@ function StatusPanel({ state }: { state: StatusSnapshot }) {
 export default function App() {
   const {
     ready, status, notice, setNotice, saves, activeId,
-    gameState, setGameState, messages, setMessages, draft, setDraft, setup, setSetup,
+    gameState, setGameState, messages, setMessages, draft, setDraft, setup, setSetup, characters, setCharacters, playerInfo, setPlayerInfo,
     switchTo, createNew, deleteSaves, exportBackup, importBackup,
   } = useGameSave();
   const vault = useVault();
@@ -140,7 +141,7 @@ export default function App() {
   // 非同期の処理の後でも、最新の状態・会話を使うための参照
   const live = useRef({ gameState, messages });
   live.current = { gameState, messages };
-  const [view, setView] = useState<'main' | 'editor' | 'saves' | 'ai' | 'setup'>('main');
+  const [view, setView] = useState<'main' | 'editor' | 'saves' | 'ai' | 'setup' | 'cast'>('main');
   const [menuOpen, setMenuOpen] = useState(false);
   const [atBottom, setAtBottom] = useState(true);
   const logRef = useRef<HTMLDivElement>(null);
@@ -198,7 +199,7 @@ export default function App() {
     abortRef.current = ac;
     setBusy(true);
     setAtBottom(true);
-    const result = await playTurn({ model, apiKey: key, state: live.current.gameState, messages: live.current.messages, playerText: text, signal: ac.signal, adult, providerPin, setup, length: replyLength });
+    const result = await playTurn({ model, apiKey: key, state: live.current.gameState, messages: live.current.messages, playerText: text, signal: ac.signal, adult, providerPin, setup, length: replyLength, characters, player: playerInfo });
     abortRef.current = null;
     setBusy(false);
     if (!result.ok) {
@@ -358,6 +359,8 @@ export default function App() {
         </button>
         {view === 'editor' ? (
           <DataEditor state={gameState} onChange={setGameState} onBack={() => setView('main')} />
+        ) : view === 'cast' ? (
+          <CharacterEditor characters={characters} player={playerInfo} onCharacters={setCharacters} onPlayer={setPlayerInfo} onBack={() => setView('main')} />
         ) : view === 'setup' ? (
           <SetupEditor value={setup} onChange={setSetup} onBack={() => setView('main')} />
         ) : view === 'ai' ? (
@@ -401,6 +404,11 @@ export default function App() {
               <li>
                 <button className="menu-item" onClick={() => setView('editor')}>
                   ゲームデータの編集
+                </button>
+              </li>
+              <li>
+                <button className="menu-item" onClick={() => setView('cast')}>
+                  人物と主人公
                 </button>
               </li>
               <li>

@@ -257,3 +257,6 @@ body {
 .adult-badge { color: var(--accent); font-weight: normal; }
 .editor .check { display: flex; gap: 8px; align-items: center; margin: 6px 0; }
 .setup-text { width: 100%; box-sizing: border-box; font: inherit; padding: 8px; }
+.char-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 6px 0; }
+.char-row small { display: block; color: var(--muted); }
+.editor textarea, .editor input:not([type=checkbox]) { width: 100%; box-sizing: border-box; font: inherit; }

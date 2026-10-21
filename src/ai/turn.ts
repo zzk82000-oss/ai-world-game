@@ -6,7 +6,8 @@ import { buildSentParams, callModel } from '../../lab/src/providers';
 import type { ModelInfo } from '../../lab/src/types';
 import { applyChanges, type Change, type GameState } from '../game/state';
 import type { Block } from '../types';
-import { player } from '../../lab/src/data/fixture';
+import { defaultPlayer, type Player } from '../game/cast';
+import type { Npc } from '../../lab/src/types';
 import { buildGameMessages, type ReplyLength } from './narrator';
 import type { Message } from '../types';
 
@@ -21,6 +22,8 @@ export type TurnInput = {
   adult?: boolean; // 成人向けモード
   setup?: string; // プレイヤーが決めた設定メモ
   length?: ReplyLength; // 返答の長さ・構成
+  characters?: Npc[]; // このセーブの登場人物(なければ既定)
+  player?: Player; // このセーブの主人公(なければ既定)
   providerPin?: string; // 提供元の指定(OpenRouter・任意。ZDRの提供元だけ・他へ切り替えない)
 };
 
@@ -64,7 +67,7 @@ export async function playTurn(input: TurnInput): Promise<TurnResult> {
   if (input.adult && endpointId === 'openrouter' && !pin) {
     return { ok: false, aborted: false, error: '成人向けモードで OpenRouter を使うときは、規約を確認した提供元を「AIの設定」の「提供元の指定」で設定してください(未設定のまま送信しません)。Venice のモデルなら、指定は不要です。' };
   }
-  const messages = buildGameMessages(input.state, input.messages, input.playerText, undefined, { adult: input.adult, setup: input.setup, length: input.length });
+  const messages = buildGameMessages(input.state, input.messages, input.playerText, undefined, { adult: input.adult, setup: input.setup, length: input.length, characters: input.characters, player: input.player });
   const { sent } = buildSentParams(input.model, { ...GENERATION_PARAMS });
   const out = await callModel(input.model, messages, sent, {
     scenarioId: 'game',
@@ -81,7 +84,7 @@ export async function playTurn(input: TurnInput): Promise<TurnResult> {
   const parsed = parseOutput(out.output);
   // プレイヤーのセリフをAIが書いてしまったときは、その部分を表示しない(プレイヤーの発言は、プレイヤーだけが決める)
   const removed = parsed.blocks.length;
-  parsed.blocks = parsed.blocks.filter((b) => !(b.type === 'speech' && b.speaker === player.name));
+  parsed.blocks = parsed.blocks.filter((b) => !(b.type === 'speech' && b.speaker === (input.player ?? defaultPlayer()).name));
   const strippedPlayer = removed !== parsed.blocks.length;
   if (!parsed.blocks.length) return { ok: false, aborted: false, error: '返答の本文が空でした' };
 
