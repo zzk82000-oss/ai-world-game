@@ -17,6 +17,7 @@ export type RunOptions = {
   mockDelayMs?: number;
   env?: RunEnv; // 実行時の環境の記録(ZDR・メモ)
   promptVersion?: number; // 指示文の版(省略時は PROMPT_VERSION)
+  providerPin?: string; // 提供元の指定(OpenRouter のみ・任意)
 };
 
 export async function runOne(model: ModelInfo, scenario: Scenario, opts: RunOptions): Promise<RunResult> {
@@ -31,6 +32,7 @@ export async function runOne(model: ModelInfo, scenario: Scenario, opts: RunOpti
     signal: opts.signal,
     fetchImpl: opts.fetchImpl,
     mockDelayMs: opts.mockDelayMs,
+    providerPin: opts.providerPin,
   });
   const parsed = outcome.status === 'success' ? parseOutput(outcome.output) : undefined;
   // 費用は出力トークン(推論を含む)で計算する。推論トークンを別に足すと二重に数えることになる
@@ -62,5 +64,6 @@ export async function runOne(model: ModelInfo, scenario: Scenario, opts: RunOpti
       : undefined,
     costJpy: usd === undefined ? undefined : usd * (opts.rate ?? DEFAULT_RATE),
     env: opts.env,
+    pinnedProvider: model.adapter === 'openai' ? opts.providerPin?.trim() || undefined : undefined,
   };
 }

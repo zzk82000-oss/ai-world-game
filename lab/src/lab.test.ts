@@ -9,7 +9,7 @@ import { badOutputs, goodOutputs } from './mockOutputs';
 import { modelByKey, models } from './models';
 import { parseOutput } from './parse';
 import { buildMessages, PROMPT_VERSION, PROMPT_VERSIONS } from './prompt';
-import { buildSentParams, callModel } from './providers';
+import { buildSentParams, callModel, providerRouting, validProviderSlug } from './providers';
 import { runOne } from './runner';
 import { LAB_DB, LabStore } from './store';
 import type { ModelInfo, RunResult } from './types';
@@ -641,5 +641,58 @@ describe('購入以外の誘発テスト(M1・P1・I1・R1)', () => {
     const r = await runOne(modelByKey('mock-good')!, sc('M1'), { repeat: 1, mockDelayMs: 1 });
     expect(r.track).toBe('induce');
     expect(toCsv([r])).toContain('誘発テスト(購入以外)');
+  });
+});
+
+describe('提供元の指定(OpenRouter・任意)', () => {
+  const KEY = 'k'.repeat(24);
+  const run = async (pin: string | undefined, model: ModelInfo = aion) => {
+    let body: Record<string, unknown> | undefined;
+    const fetchImpl = vi.fn(async (_url: unknown, init?: RequestInit) => {
+      body = JSON.parse(String(init?.body));
+      return okResponse();
+    });
+    const r = await runOne(model, sc('A'), { repeat: 1, keyFor: () => KEY, verifiedEndpoints: VERIFIED, providerPin: pin, fetchImpl: fetchImpl as unknown as typeof fetch });
+    return { r, body, calls: fetchImpl.mock.calls.length };
+  };
+
+  it('指定しなければ、これまでと同じ(provider を送らない)', async () => {
+    const { r, body } = await run(undefined);
+    expect(body && 'provider' in body).toBe(false);
+    expect(r.pinnedProvider).toBeUndefined();
+    expect(comparisonKind(r)).toBe(comparisonKind((await run('')).r));
+  });
+
+  it('指定すると、その提供元だけ・他へ切り替えない・ZDRの提供元だけ、で送り、結果に記録する(キーは本文に入れない)', async () => {
+    const { r, body } = await run('example-provider/fp8');
+    expect(body?.provider).toEqual({ order: ['example-provider/fp8'], only: ['example-provider/fp8'], allow_fallbacks: false, zdr: true });
+    expect(r.pinnedProvider).toBe('example-provider/fp8');
+    expect(JSON.stringify(body)).not.toContain(KEY);
+    const csv = toCsv([r]);
+    expect(csv).toContain('指定した提供元');
+    expect(csv).toContain('example-provider/fp8');
+  });
+
+  it('プライバシー条件を緩める指定は作らない(常に zdr: true)', () => {
+    expect(providerRouting('x').zdr).toBe(true);
+    expect(providerRouting('x').allow_fallbacks).toBe(false);
+  });
+
+  it('形式が正しくない識別名は、送信せずに失敗として記録する', async () => {
+    for (const bad of ['a b', '../x', 'x;y', '"', '-x', 'a'.repeat(65)]) {
+      expect(validProviderSlug(bad)).toBe(false);
+      const { r, calls } = await run(bad);
+      expect(calls).toBe(0);
+      expect(r.status).toBe('error');
+      expect(r.error).toContain('識別名');
+    }
+  });
+
+  it('OpenRouter 以外の送信先では、指定を使わず失敗として記録する', async () => {
+    const venice = models.find((m) => m.endpointId === 'venice' && m.adapter === 'openai');
+    if (!venice) return;
+    const { r, calls } = await run('x', venice);
+    expect(calls).toBe(0);
+    expect(r.status).toBe('error');
   });
 });

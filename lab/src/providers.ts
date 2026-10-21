@@ -53,6 +53,12 @@ function wait(ms: number, signal?: AbortSignal) {
   });
 }
 
+// OpenRouter の提供元の指定(任意)。指定したときだけ、その提供元に限定し、他へ切り替えず、ZDR の提供元だけに限る。
+// プライバシー条件を緩める指定(ZDR を外す等)は作らない。slug は OpenRouter のモデルページで確認した識別名。
+export const PROVIDER_SLUG = /^[A-Za-z0-9][A-Za-z0-9._/-]{0,63}$/;
+export const validProviderSlug = (v: string) => PROVIDER_SLUG.test(v);
+export const providerRouting = (slug: string) => ({ order: [slug], only: [slug], allow_fallbacks: false, zdr: true });
+
 type CallOptions = {
   scenarioId: string;
   keyFor?: (endpointId: string) => string | undefined; // 送信先ごとのキー(メモリ上にだけある)
@@ -61,6 +67,7 @@ type CallOptions = {
   fetchImpl?: typeof fetch;
   now?: () => number;
   mockDelayMs?: number;
+  providerPin?: string; // 提供元の指定(OpenRouter のみ・任意)
 };
 
 const noUsage = (): Usage => ({ inputTokens: 0, outputTokens: 0, source: 'estimate' });
@@ -94,6 +101,12 @@ export async function callModel(model: ModelInfo, messages: ChatMessage[], sentP
     return { status: 'error', output: '', error: `${ep.provider} のAPIキーが入力されていません(「設定」タブで入力できます。保存はされません)`, latencyMs: 0, usage: noUsage() };
   }
 
+  const pin = opts.providerPin?.trim() || undefined;
+  if (pin) {
+    if (ep.id !== 'openrouter') return { status: 'error', output: '', error: '提供元の指定は OpenRouter だけで使えます', latencyMs: 0, usage: noUsage() };
+    if (!validProviderSlug(pin)) return { status: 'error', output: '', error: '提供元の識別名(slug)の形式が正しくありません(英数字・ . _ / - のみ)', latencyMs: 0, usage: noUsage() };
+  }
+
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(new DOMException('timeout', 'TimeoutError')), TIMEOUT_MS);
   opts.signal?.addEventListener('abort', () => controller.abort(new DOMException('aborted', 'AbortError')));
@@ -103,7 +116,7 @@ export async function callModel(model: ModelInfo, messages: ChatMessage[], sentP
       ...SAFE_FETCH,
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({ model: model.apiModelId, messages, ...sentParams, stream: false }),
+      body: JSON.stringify({ model: model.apiModelId, messages, ...sentParams, ...(pin ? { provider: providerRouting(pin) } : {}), stream: false }),
       signal: controller.signal,
     });
     const text = await res.text();

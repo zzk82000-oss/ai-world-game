@@ -5,7 +5,7 @@ import { checkBrowserAccess, ENDPOINTS, liveBlockReason } from './endpoints';
 import { COMPARISON_LABEL, comparisonKind, hasSerious, toCsv, toJson, totalScore } from './export';
 import { modelByKey, models } from './models';
 import { buildMessages, GENERATION_PARAMS, PROMPT_VERSION, PROMPT_VERSIONS } from './prompt';
-import { buildSentParams, estimateInputTokens } from './providers';
+import { buildSentParams, estimateInputTokens, providerRouting, validProviderSlug } from './providers';
 import { ResultCard } from './ResultCard';
 import { runOne } from './runner';
 import { LabStore } from './store';
@@ -143,6 +143,10 @@ function RunTab({ keys, verified, rate, onResult }: { keys: Keys; verified: Set<
   const model = modelByKey(modelKey)!;
   const scenario = scenarioById(scenarioId)!;
   const [promptVersion, setPromptVersion] = useState<number>(PROMPT_VERSION);
+  const [providerPin, setProviderPin] = useState('');
+  const pin = providerPin.trim();
+  const pinInvalid = pin !== '' && !validProviderSlug(pin);
+  const pinUsable = model.endpointId === 'openrouter';
   const messages = useMemo(() => buildMessages(scenario, promptVersion), [scenario, promptVersion]);
   const inTok = estimateInputTokens(messages);
   const { sent, notes } = buildSentParams(model, GENERATION_PARAMS);
@@ -160,7 +164,7 @@ function RunTab({ keys, verified, rate, onResult }: { keys: Keys; verified: Set<
     for (const [i, t] of targets.entries()) {
       if (ac.signal.aborted) break;
       setBusy(`${i + 1} / ${targets.length} を実行中…`);
-      const r = await runOne(model, scenarioById(t.id)!, { repeat: t.repeat, keyFor: keys.keyFor, verifiedEndpoints: verified, signal: ac.signal, rate, env, promptVersion });
+      const r = await runOne(model, scenarioById(t.id)!, { repeat: t.repeat, keyFor: keys.keyFor, verifiedEndpoints: verified, signal: ac.signal, rate, env, promptVersion, providerPin: pin && !pinInvalid && pinUsable ? pin : undefined });
       await onResult(r);
       done.push(r);
       setLast([...done].reverse());
@@ -266,7 +270,7 @@ function RunTab({ keys, verified, rate, onResult }: { keys: Keys; verified: Set<
           </button>
         </div>
       ) : !confirming ? (
-        <button disabled={!!blocked || !!needKey} onClick={() => { setConfirming(true); setAgreed(false); setTermsChecked(false); }}>
+        <button disabled={!!blocked || !!needKey || pinInvalid} onClick={() => { setConfirming(true); setAgreed(false); setTermsChecked(false); }}>
           送信内容と費用を確認する
         </button>
       ) : (
@@ -285,6 +289,7 @@ function RunTab({ keys, verified, rate, onResult }: { keys: Keys; verified: Set<
               <br />
               <small>出力が上限まで出た場合の推定です。入力トークン数は概算で、推論の扱いも未確認のため、保証された上限ではありません。実際の請求額は未確認です。</small>
             </li>
+            {pin && !pinInvalid && pinUsable && <li>提供元の指定: {pin}({JSON.stringify(providerRouting(pin))})。使えなければ、他へ切り替えずにエラーになります</li>}
             <li>送信は1回だけです。失敗しても自動で再試行しません。</li>
           </ul>
           <label className="check">
@@ -336,7 +341,7 @@ function summarize(rs: RunResult[]) {
 // モデル × シナリオごとの、実通信(指示文v2・成功)の回数。追加実測の回数を決めるための表
 function CountTable({ results }: { results: RunResult[] }) {
   const live = results.filter((r) => r.live && r.status === 'success');
-  const rowKey = (r: RunResult) => `${r.modelName}(指示文v${r.promptVersion ?? 1})`;
+  const rowKey = (r: RunResult) => `${r.modelName}(指示文v${r.promptVersion ?? 1}${r.pinnedProvider ? `・提供元指定:${r.pinnedProvider}` : ''})`;
   const names = [...new Set(live.map(rowKey))].sort();
   if (!names.length) return <p className="note">まだ実通信の結果がありません。</p>;
   return (
@@ -362,7 +367,7 @@ function CompareTable({ results }: { results: RunResult[] }) {
   const groups = new Map<string, RunResult[]>();
   // 指示文の版が違う結果、共通条件と実運用(個別設定あり)の結果は混ぜずに、別の行にする
   for (const r of results) {
-    const k = `${r.modelName}(指示文v${r.promptVersion ?? 1}・${COMPARISON_LABEL[comparisonKind(r)]})`;
+    const k = `${r.modelName}(指示文v${r.promptVersion ?? 1}・${COMPARISON_LABEL[comparisonKind(r)]}${r.pinnedProvider ? `・提供元指定:${r.pinnedProvider}` : ''})`;
     groups.set(k, [...(groups.get(k) ?? []), r]);
   }
   const fmt = (n: number | undefined, d = 1) => (n === undefined ? '-' : n.toFixed(d));

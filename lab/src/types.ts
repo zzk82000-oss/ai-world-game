@@ -176,6 +176,7 @@ export type RunResult = {
   provider: string;
   endpoint?: string; // 実際の送信先(許可リストの値)
   servedBy?: string; // 実際に処理した提供元(返ってきた場合のみ)
+  pinnedProvider?: string; // 利用者が指定した提供元の識別名(指定したときだけ。ZDRの提供元に限定し、他へ切り替えない条件で送った)
   live: boolean; // 実通信か(false = 模擬)
   scenarioId: string;
   track: Scenario['track'];

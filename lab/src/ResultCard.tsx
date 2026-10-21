@@ -131,6 +131,7 @@ export function ResultCard({ result, onSave }: { result: RunResult; onSave: (r: 
         {result.usage.reasoningTokens !== undefined ? `(うち推論 ${result.usage.reasoningTokens})` : ''}
         {result.usage.source === 'api' ? '(APIの値)' : '(概算)'}
         {result.live ? ` ・ 処理した提供元: ${result.servedBy ?? '不明(返ってこなかった)'}` : ''}
+        {result.pinnedProvider ? ` ・ 指定した提供元: ${result.pinnedProvider}(他へ切り替えず・ZDRの提供元だけ)` : ''}
         {result.live ? ` ・ ZDR(入力値): ${result.env ? { on: 'オン', off: 'オフ', unknown: '未確認' }[result.env.zdr] : '未記録'}` : ''}
         {result.env?.note ? ` ・ メモ: ${result.env.note}` : ''}
         <br />
