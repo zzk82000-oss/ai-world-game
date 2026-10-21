@@ -188,6 +188,20 @@ export function useGameSave() {
     return { ok: true as const, name };
   }, [adopt, refreshList, writeNow]);
 
+  // 使用中ではないセーブを消す(使用中のセーブは消さない)
+  const deleteSaves = useCallback(
+    async (ids: string[]) => {
+      const store = storeRef.current;
+      if (!store) return { ok: false as const, error: '保存できない状態のため、消せません' };
+      const targets = ids.filter((id) => id !== metaRef.current.id);
+      if (!targets.length) return { ok: false as const, error: '消せるセーブがありません(使用中のセーブは消せません)' };
+      for (const id of targets) await store.deleteSave(id);
+      await refreshList();
+      return { ok: true as const, count: targets.length };
+    },
+    [refreshList],
+  );
+
   const exportBackup = useCallback(() => {
     const cur = latest.current;
     const meta = metaRef.current;
@@ -227,6 +241,6 @@ export function useGameSave() {
   return {
     ready, status, notice, setNotice, saves, activeId,
     gameState, setGameState, messages, setMessages, draft, setDraft, setup, setSetup,
-    switchTo, createNew, exportBackup, importBackup,
+    switchTo, createNew, deleteSaves, exportBackup, importBackup,
   };
 }

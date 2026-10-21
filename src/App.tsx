@@ -54,7 +54,7 @@ export default function App() {
   const {
     ready, status, notice, setNotice, saves, activeId,
     gameState, setGameState, messages, setMessages, draft, setDraft, setup, setSetup,
-    switchTo, createNew, exportBackup, importBackup,
+    switchTo, createNew, deleteSaves, exportBackup, importBackup,
   } = useGameSave();
   const vault = useVault();
   const [busy, setBusy] = useState(false);
@@ -375,6 +375,7 @@ export default function App() {
               if (r.ok) closeMenu();
               return r;
             }}
+            onDelete={deleteSaves}
             onNew={createNew}
             onExport={exportBackup}
             onImport={importBackup}

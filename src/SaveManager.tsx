@@ -6,6 +6,7 @@ type Props = {
   activeId: string;
   onOpen: (id: string) => Promise<{ ok: boolean; error?: string }>;
   onExport: () => { filename: string; text: string };
+  onDelete: (ids: string[]) => Promise<{ ok: boolean; error?: string; count?: number }>;
   onNew: () => Promise<{ ok: boolean; error?: string; name?: string }>;
   onImport: (text: string) => Promise<{ ok: boolean; error?: string; name?: string }>;
   onBack: () => void;
@@ -13,7 +14,7 @@ type Props = {
 
 const fmt = (t: number) => new Date(t).toLocaleString('ja-JP', { dateStyle: 'short', timeStyle: 'short' });
 
-export function SaveManager({ saves, activeId, onOpen, onNew, onExport, onImport, onBack }: Props) {
+export function SaveManager({ saves, activeId, onOpen, onDelete, onNew, onExport, onImport, onBack }: Props) {
   const [message, setMessage] = useState('');
   const [isError, setIsError] = useState(false);
 
@@ -56,14 +57,26 @@ export function SaveManager({ saves, activeId, onOpen, onNew, onExport, onImport
             {s.id === activeId ? (
               <span className="note">使用中</span>
             ) : (
-              <button
-                onClick={async () => {
-                  const r = await onOpen(s.id);
-                  if (!r.ok) show(r.error ?? '開けませんでした', true);
-                }}
-              >
-                開く
-              </button>
+              <span className="row">
+                <button
+                  onClick={async () => {
+                    const r = await onOpen(s.id);
+                    if (!r.ok) show(r.error ?? '開けませんでした', true);
+                  }}
+                >
+                  開く
+                </button>
+                <button
+                  onClick={async () => {
+                    if (!confirm(`セーブ「${s.name}」を消します。元に戻せません。\n(先にバックアップを書き出しておくと、あとで取り込めます)\n消しますか？`)) return;
+                    const r = await onDelete([s.id]);
+                    if (r.ok) show(`「${s.name}」を消しました。`);
+                    else show(r.error ?? '消せませんでした', true);
+                  }}
+                >
+                  消す
+                </button>
+              </span>
             )}
           </li>
         ))}
@@ -81,6 +94,22 @@ export function SaveManager({ saves, activeId, onOpen, onNew, onExport, onImport
         </button>
       </div>
       <p className="note">今のセーブは消さず、別のセーブとして、はじめから始めます。</p>
+
+      {saves.length > 1 && (
+        <div className="row">
+          <button
+            onClick={async () => {
+              const others = saves.filter((x) => x.id !== activeId);
+              if (!confirm(`使用中のセーブ以外の ${others.length} 件を、すべて消します。元に戻せません。\n(先にバックアップを書き出しておくと、あとで取り込めます)\n消しますか？`)) return;
+              const r = await onDelete(others.map((x) => x.id));
+              if (r.ok) show(`${r.count} 件のセーブを消しました。使用中のセーブは残っています。`);
+              else show(r.error ?? '消せませんでした', true);
+            }}
+          >
+            使用中以外を、すべて消す
+          </button>
+        </div>
+      )}
 
       <h3>バックアップ</h3>
       <div className="row">

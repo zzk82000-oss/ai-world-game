@@ -136,6 +136,18 @@ export class SaveStore {
     return typeof d?.text === 'string' ? d.text : '';
   }
 
+  // セーブを消す。復旧用の控えと、下書きも、あわせて消す(壊れたデータの退避場所 quarantine は、そのまま残す)。
+  // 使用中のセーブを消すかどうかの判断は、呼び出し側が行う
+  async deleteSave(id: string): Promise<void> {
+    const tx = this.db.transaction(['saves', 'drafts', 'snapshots'], 'readwrite');
+    tx.objectStore('saves').delete(id);
+    tx.objectStore('drafts').delete(id);
+    const snaps = tx.objectStore('snapshots');
+    const keys = (await req(snaps.index('saveId').getAllKeys(id))) as IDBValidKey[];
+    for (const k of keys) snaps.delete(k);
+    await done(tx);
+  }
+
   async countSnapshots(saveId: string): Promise<number> {
     return req(this.db.transaction('snapshots').objectStore('snapshots').index('saveId').count(saveId));
   }

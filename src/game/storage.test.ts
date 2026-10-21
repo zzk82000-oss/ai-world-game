@@ -99,4 +99,27 @@ describe('端末内保存', () => {
     await store.put(createInitialSave('new', 2, '新しい'));
     expect((await store.listSaves()).map((x) => x.id)).toEqual(['new', 'old']);
   });
+
+  it('セーブを消すと、そのセーブの下書き・復旧用の控えも消え、ほかのセーブは残る', async () => {
+    const store = await open();
+    const a = createInitialSave('a', 1, 'A');
+    const b = createInitialSave('b', 2, 'B');
+    await store.put(a);
+    await store.put(b);
+    await store.putDraft('a', '書きかけ');
+    await store.put({ ...a, updatedAt: 99 }); // 控えができる
+    expect(await store.countSnapshots('a')).toBeGreaterThan(0);
+    await store.deleteSave('a');
+    expect((await store.listSaves()).map((x) => x.id)).toEqual(['b']);
+    expect((await store.load('a')).kind).toBe('missing');
+    expect(await store.getDraft('a')).toBe('');
+    expect(await store.countSnapshots('a')).toBe(0);
+    expect((await store.load('b')).kind).toBe('ok');
+  });
+
+  it('存在しないセーブを消そうとしても、エラーにならない', async () => {
+    const store = await open();
+    await store.deleteSave('none');
+    expect(await store.listSaves()).toEqual([]);
+  });
 });
