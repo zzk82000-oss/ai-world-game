@@ -40,6 +40,7 @@ export async function runOne(model: ModelInfo, scenario: Scenario, opts: RunOpti
     apiModelId: model.apiModelId,
     provider: model.provider,
     endpoint: outcome.endpoint,
+    servedBy: outcome.servedBy,
     live: model.adapter === 'openai',
     scenarioId: scenario.id,
     track: scenario.track,

@@ -371,6 +371,18 @@ describe('費用', () => {
   });
 });
 
+describe('処理した提供元の記録', () => {
+  it('OpenRouter が返した提供元名を結果とCSVに記録し、返らなければ不明として扱う', async () => {
+    const withProvider = new Response(JSON.stringify({ provider: 'Together', choices: [{ message: { content: 'リオ「どうも」' } }], usage: { prompt_tokens: 1000, completion_tokens: 50 } }), { status: 200 });
+    const r = await runOne(aion, sc('A'), { repeat: 1, keyFor: () => 'k'.repeat(20), verifiedEndpoints: VERIFIED, fetchImpl: (async () => withProvider) as unknown as typeof fetch });
+    expect(r.servedBy).toBe('Together');
+    const csv = toCsv([r]).split('\r\n');
+    expect(csv[1].split(',')[csv[0].split(',').indexOf('処理した提供元')]).toBe('Together');
+    const none = await runOne(aion, sc('A'), { repeat: 1, keyFor: () => 'k'.repeat(20), verifiedEndpoints: VERIFIED, fetchImpl: (async () => okResponse()) as unknown as typeof fetch });
+    expect(none.servedBy).toBeUndefined();
+  });
+});
+
 describe('料金の更新(2026-10-21)', () => {
   it('DeepSeek と GLM の料金・確認日・出典を持ち、月額の試算ができる', () => {
     const d = modelByKey('deepseek-v4.1-flash-or')!;

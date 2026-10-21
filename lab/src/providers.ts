@@ -11,6 +11,7 @@ export type CallOutcome = {
   latencyMs: number;
   usage: Usage;
   endpoint?: string;
+  servedBy?: string; // 実際に処理した提供元(OpenRouter が返した場合のみ。振り分け先は毎回変わりうる)
 };
 
 export const TIMEOUT_MS = 120_000;
@@ -110,6 +111,7 @@ export async function callModel(model: ModelInfo, messages: ChatMessage[], sentP
       return { status: 'error', output: '', error: redact(`HTTP ${res.status}: ${text.slice(0, 500)}`, secrets), latencyMs: elapsed(), usage: noUsage(), endpoint: ep.url };
     }
     let data: {
+      provider?: unknown;
       choices?: { message?: { content?: unknown }; finish_reason?: string }[];
       usage?: { prompt_tokens?: number; completion_tokens?: number; completion_tokens_details?: { reasoning_tokens?: number } };
     };
@@ -122,6 +124,7 @@ export async function callModel(model: ModelInfo, messages: ChatMessage[], sentP
     const u = data.usage;
     const real = typeof u?.prompt_tokens === 'number' && typeof u?.completion_tokens === 'number';
     const reasoning = u?.completion_tokens_details?.reasoning_tokens;
+    const servedBy = typeof data.provider === 'string' && data.provider.length <= 80 ? data.provider : undefined;
     const apiUsage: Usage | undefined = real
       ? { inputTokens: u!.prompt_tokens as number, outputTokens: u!.completion_tokens as number, source: 'api', ...(typeof reasoning === 'number' ? { reasoningTokens: reasoning } : {}) }
       : undefined;
@@ -135,7 +138,7 @@ export async function callModel(model: ModelInfo, messages: ChatMessage[], sentP
         `本文: ${content === null ? 'null' : typeof content === 'string' ? '空' : '(なし)'}`,
         reasoningLen ? `推論の文章が別の欄に${reasoningLen}文字あった` : '',
       ].filter(Boolean).join(' / ');
-      return { status: 'error', output: '', error: `返答の本文が空でした(${detail})`, latencyMs: elapsed(), usage: apiUsage ?? noUsage(), endpoint: ep.url };
+      return { status: 'error', output: '', error: `返答の本文が空でした(${detail})`, latencyMs: elapsed(), usage: apiUsage ?? noUsage(), endpoint: ep.url, servedBy };
     }
     const output = redact(content, secrets);
     const usage: Usage = apiUsage ?? { inputTokens: estimateInputTokens(messages), outputTokens: estimateTokens(output), source: 'estimate' };
@@ -146,6 +149,7 @@ export async function callModel(model: ModelInfo, messages: ChatMessage[], sentP
       latencyMs: elapsed(),
       usage,
       endpoint: ep.url,
+      servedBy,
     };
   } catch (e) {
     const name = (e as { name?: string })?.name;

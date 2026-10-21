@@ -136,6 +136,7 @@ export type RunResult = {
   apiModelId?: string;
   provider: string;
   endpoint?: string; // 実際の送信先(許可リストの値)
+  servedBy?: string; // 実際に処理した提供元(返ってきた場合のみ)
   live: boolean; // 実通信か(false = 模擬)
   scenarioId: string;
   track: Scenario['track'];

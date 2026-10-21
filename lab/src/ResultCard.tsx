@@ -47,6 +47,7 @@ export function ResultCard({ result, onSave }: { result: RunResult; onSave: (r: 
         応答 {(result.latencyMs / 1000).toFixed(1)}秒 ・ 入力 {result.usage.inputTokens} / 出力 {result.usage.outputTokens} トークン
         {result.usage.reasoningTokens !== undefined ? `(うち推論 ${result.usage.reasoningTokens})` : ''}
         {result.usage.source === 'api' ? '(APIの値)' : '(概算)'}
+        {result.live ? ` ・ 処理した提供元: ${result.servedBy ?? '不明(返ってこなかった)'}` : ''}
         <br />
         推定費用 {result.costJpy === undefined ? '料金未確認' : yenPrecise(result.costJpy)}
         {result.price ? `(単価 $${result.price.inputUsdPerM}/$${result.price.outputUsdPerM}・${result.price.checkedAt ?? '確認日不明'}時点)` : ''}・実際の請求額は未確認
