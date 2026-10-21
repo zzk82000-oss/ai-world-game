@@ -2,7 +2,7 @@ import { IDBFactory } from 'fake-indexeddb';
 import { describe, expect, it, vi } from 'vitest';
 import { modelByKey } from '../../lab/src/models';
 import { createInitialSave, initialState } from '../game/initial';
-import { serializeBackup } from '../game/save';
+import { parseBackup, serializeBackup, SETUP_MAX, validateSave } from '../game/save';
 import { SaveStore } from '../game/storage';
 import type { Message } from '../types';
 import { blocksToText, buildGameMessages, MAX_HISTORY_TURNS } from './narrator';
@@ -383,5 +383,46 @@ describe('品質の対策(口調の保持・プレイヤーのセリフを書か
     const f = (async () => okBody('リオ「どうぞ」')) as unknown as typeof fetch;
     const r = await playTurn({ model, apiKey: KEY, state: initialState(), messages: [], playerText: 'x', fetchImpl: f });
     expect(r.ok && r.notice).toBeFalsy();
+  });
+});
+
+describe('設定メモ(関係・状況)', () => {
+  const sys = (setup?: string, adult = false) => buildGameMessages(initialState(), createInitialSave('a', 1).messages, 'x', undefined, { adult, setup })[0].content;
+
+  it('メモがあれば、「プレイヤーが決めた設定」として、AIへの指示に入る。空なら入らない', () => {
+    expect(sys('リオとカイは恋人どうし')).toContain('プレイヤーが決めた設定');
+    expect(sys('リオとカイは恋人どうし')).toContain('リオとカイは恋人どうし');
+    expect(sys('')).not.toContain('プレイヤーが決めた設定');
+    expect(sys('   ')).not.toContain('プレイヤーが決めた設定');
+  });
+
+  it('メモを書いても、成人向けの年齢の決まり(21歳未満は関わらない)は、そのまま入る', () => {
+    const s = sys('ミラは大人として扱う', true);
+    expect(s).toContain('21歳以上と設定された人物だけ');
+    expect(s).toContain('21歳未満: 性的な場面には、どんな場合も関わらせない');
+  });
+
+  it('送信内容に、メモが入る', async () => {
+    let body = '';
+    const f = (async (_u: unknown, init?: RequestInit) => {
+      body = String(init?.body);
+      return okBody('リオ「どうも」');
+    }) as unknown as typeof fetch;
+    await playTurn({ model, apiKey: KEY, state: initialState(), messages: [], playerText: 'x', setup: 'いまは夜の薬屋', fetchImpl: f });
+    expect(body).toContain('いまは夜の薬屋');
+  });
+
+  it('セーブに保存でき、バックアップにも入る。長すぎる・文字列でないメモは拒否する。メモなしの古いセーブも読める', async () => {
+    const base = createInitialSave('a', 1);
+    expect(validateSave({ ...base, setup: '恋人どうし' }).ok).toBe(true);
+    expect(validateSave(base).ok).toBe(true);
+    expect(validateSave({ ...base, setup: 123 }).ok).toBe(false);
+    expect(validateSave({ ...base, setup: 'あ'.repeat(SETUP_MAX + 1) }).ok).toBe(false);
+    const store = await SaveStore.open(new IDBFactory());
+    await store.put({ ...base, setup: '恋人どうし' });
+    const r = await store.load('a');
+    expect(r.kind === 'ok' && r.save.setup).toBe('恋人どうし');
+    const parsed = parseBackup(serializeBackup({ ...base, setup: '恋人どうし' }, 1));
+    expect(parsed.ok && parsed.save.setup).toBe('恋人どうし');
   });
 });

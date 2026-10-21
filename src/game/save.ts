@@ -12,7 +12,10 @@ export type SaveData = {
   updatedAt: number;
   state: GameState;
   messages: Message[];
+  setup?: string; // プレイヤーが決めた設定メモ(関係・状況など)。AIに「最優先で守る設定」として渡す
 };
+
+export const SETUP_MAX = 4000;
 
 // バックアップファイル。ゲームの文字データだけを含む(APIキーなどは入れない)
 export type Backup = {
@@ -103,6 +106,7 @@ export function validateSave(x: unknown): Validated {
   }
   const stateError = checkStatus(s.state, true);
   if (stateError) return { ok: false, error: stateError };
+  if (s.setup !== undefined && !(isStr(s.setup) && s.setup.length <= SETUP_MAX)) return { ok: false, error: '設定メモが正しくありません' };
   if (!Array.isArray(s.messages)) return { ok: false, error: '会話の記録が正しくありません' };
   for (const m of s.messages) {
     const e = checkMessage(m);

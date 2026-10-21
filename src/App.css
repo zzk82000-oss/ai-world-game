@@ -256,3 +256,4 @@ body {
 .changelog .link-btn { margin-left: 8px; }
 .adult-badge { color: var(--accent); font-weight: normal; }
 .editor .check { display: flex; gap: 8px; align-items: center; margin: 6px 0; }
+.setup-text { width: 100%; box-sizing: border-box; font: inherit; padding: 8px; }

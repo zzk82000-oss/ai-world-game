@@ -19,6 +19,7 @@ export type TurnInput = {
   signal?: AbortSignal;
   fetchImpl?: typeof fetch;
   adult?: boolean; // 成人向けモード
+  setup?: string; // プレイヤーが決めた設定メモ
   providerPin?: string; // 提供元の指定(OpenRouter・任意。ZDRの提供元だけ・他へ切り替えない)
 };
 
@@ -62,7 +63,7 @@ export async function playTurn(input: TurnInput): Promise<TurnResult> {
   if (input.adult && endpointId === 'openrouter' && !pin) {
     return { ok: false, aborted: false, error: '成人向けモードで OpenRouter を使うときは、規約を確認した提供元を「AIの設定」の「提供元の指定」で設定してください(未設定のまま送信しません)。Venice のモデルなら、指定は不要です。' };
   }
-  const messages = buildGameMessages(input.state, input.messages, input.playerText, undefined, { adult: input.adult });
+  const messages = buildGameMessages(input.state, input.messages, input.playerText, undefined, { adult: input.adult, setup: input.setup });
   const { sent } = buildSentParams(input.model, { ...GENERATION_PARAMS });
   const out = await callModel(input.model, messages, sent, {
     scenarioId: 'game',

@@ -22,17 +22,19 @@ export function useGameSave() {
   const [gameState, setGameState] = useState<GameState>(initialState);
   const [messages, setMessages] = useState<Message[]>([]);
   const [draft, setDraft] = useState('');
+  const [setup, setSetup] = useState('');
 
   const storeRef = useRef<SaveStore | null>(null);
   const metaRef = useRef<Meta>({ id: '', name: '', createdAt: 0 });
-  const lastSaved = useRef<{ state: GameState; messages: Message[]; draft: string } | null>(null);
-  const latest = useRef({ gameState, messages, draft });
-  latest.current = { gameState, messages, draft };
+  const lastSaved = useRef<{ state: GameState; messages: Message[]; draft: string; setup: string } | null>(null);
+  const latest = useRef({ gameState, messages, draft, setup });
+  latest.current = { gameState, messages, draft, setup };
   const chain = useRef<Promise<void>>(Promise.resolve());
 
   const adopt = useCallback((save: SaveData, draftText: string) => {
     metaRef.current = { id: save.id, name: save.name, createdAt: save.createdAt };
-    lastSaved.current = { state: save.state, messages: save.messages, draft: draftText };
+    lastSaved.current = { state: save.state, messages: save.messages, draft: draftText, setup: save.setup ?? '' };
+    setSetup(save.setup ?? '');
     setGameState(save.state);
     setMessages(save.messages);
     setDraft(draftText);
@@ -105,10 +107,10 @@ export function useGameSave() {
     if (!store || !lastSaved.current) return chain.current;
     const cur = latest.current;
     const prev = lastSaved.current;
-    const stateChanged = cur.gameState !== prev.state || cur.messages !== prev.messages;
+    const stateChanged = cur.gameState !== prev.state || cur.messages !== prev.messages || cur.setup !== prev.setup;
     const draftChanged = cur.draft !== prev.draft;
     if (!stateChanged && !draftChanged) return chain.current;
-    lastSaved.current = { state: cur.gameState, messages: cur.messages, draft: cur.draft };
+    lastSaved.current = { state: cur.gameState, messages: cur.messages, draft: cur.draft, setup: cur.setup };
     const meta = metaRef.current;
     setStatus('saving');
     chain.current = chain.current
@@ -122,6 +124,7 @@ export function useGameSave() {
             updatedAt: Date.now(),
             state: cur.gameState,
             messages: cur.messages,
+            ...(cur.setup ? { setup: cur.setup } : {}),
           });
         }
         if (draftChanged) await store.putDraft(meta.id, cur.draft);
@@ -139,7 +142,7 @@ export function useGameSave() {
     if (!ready) return;
     const t = setTimeout(() => void writeNow(), DEBOUNCE_MS);
     return () => clearTimeout(t);
-  }, [ready, gameState, messages, draft, writeNow]);
+  }, [ready, gameState, messages, draft, setup, writeNow]);
 
   // 画面を閉じる・別アプリに移るときは、待たずに保存する
   useEffect(() => {
@@ -199,6 +202,7 @@ export function useGameSave() {
         updatedAt: now.getTime(),
         state: cur.gameState,
         messages: cur.messages,
+        ...(cur.setup ? { setup: cur.setup } : {}),
       },
       now.getTime(),
     );
@@ -222,7 +226,7 @@ export function useGameSave() {
 
   return {
     ready, status, notice, setNotice, saves, activeId,
-    gameState, setGameState, messages, setMessages, draft, setDraft,
+    gameState, setGameState, messages, setMessages, draft, setDraft, setup, setSetup,
     switchTo, createNew, exportBackup, importBackup,
   };
 }
