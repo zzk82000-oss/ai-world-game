@@ -457,3 +457,50 @@ describe('返答の長さ・構成', () => {
     expect(body).not.toContain('行動や状況の説明(2〜3行)');
   });
 });
+
+// 現行のエンジンの実態を記録するテスト(動作は変えない)。プレイヤーの承諾の確認は、いまのところ、行っていない。
+describe('現行の状態変更エンジンの実態(特性テスト)', () => {
+  const run = (content: string, playerText = 'こんにちは') =>
+    playTurn({ model, apiKey: KEY, state: initialState(), messages: [], playerText, fetchImpl: (async () => okBody(content)) as unknown as typeof fetch });
+
+  it('プレイヤーが頼んでいなくても、成立する購入の提案は、そのまま反映される(承諾の確認はない。変更ログと取り消しで復旧する)', async () => {
+    const r = await run('リオ「カモミール、50Gです」\n<changes>{"changes":[{"type":"purchase","itemName":"カモミール","price":50}],"promises":[]}</changes>', 'ミラの出身を知ってる?');
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      const s = settleChanges(initialState(), r.changes);
+      expect(s.state.money).toBe(2950);
+      expect(s.applied?.before).toBeDefined(); // 取り消し用の元の状態が残る
+    }
+  });
+
+  it('場所の移動・アイテムの入手も、同じく、承諾の確認なしで反映される', () => {
+    const s = settleChanges(initialState(), [{ type: 'setPlace', place: '港の灯台' }, { type: 'addItem', name: '青い小瓶' }]);
+    expect(s.state.place).toBe('港の灯台');
+    expect(s.state.items.some((i) => i.name === '青い小瓶')).toBe(true);
+  });
+
+  it('所持金を超える支払いなど、成立しない提案は、状態を変えず、理由を知らせる', () => {
+    const s = settleChanges(initialState(), [{ type: 'pay', amount: 999999 }]);
+    expect(s.state.money).toBe(3000);
+    expect(s.notice).toContain('反映されませんでした');
+  });
+
+  it('提案が複数あり、1つでも成立しなければ、全体を反映しない(途中までの反映はない)', () => {
+    const s = settleChanges(initialState(), [{ type: 'pay', amount: 100 }, { type: 'pay', amount: 999999 }]);
+    expect(s.state.money).toBe(3000);
+    expect(s.applied).toBeNull();
+  });
+
+  it('提案が欠落・解析不能のときは、状態を変えない(本文は表示する)', async () => {
+    for (const body of ['リオ「どうも」', 'リオ「どうも」\n<changes>{壊れた</changes>', 'リオ「どうも」\n<changes>{"changes":[{"type":"unknown"}]}</changes>']) {
+      const r = await run(body);
+      expect(r.ok).toBe(true);
+      if (r.ok) expect(r.changes).toEqual([]);
+    }
+  });
+
+  it('本文に「買いました」とあっても、提案が無ければ、状態は変わらない(本文と状態の食い違いは、検査していない)', async () => {
+    const r = await run('リオ「お買い上げ、ありがとうございます」');
+    expect(r.ok && r.changes).toEqual([]);
+  });
+});
