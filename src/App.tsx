@@ -1,7 +1,11 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { DataEditor } from './DataEditor';
-import { applyChanges, statusOf, type StatusSnapshot } from './game/state';
-import { mockReplies } from './mockReplies';
+import { AiSettings, GAME_MODELS } from './AiSettings';
+import { playTurn, settleChanges } from './ai/turn';
+import { browserKV, DAILY_LIMIT, readUsage, tryCount } from './ai/usage';
+import { useVault } from './ai/useVault';
+import { statusOf, type StatusSnapshot } from './game/state';
+import { modelByKey } from '../lab/src/models';
 import { RichText } from './RichText';
 import { SaveManager } from './SaveManager';
 import { useGameSave } from './useGameSave';
@@ -47,9 +51,33 @@ export default function App() {
   const {
     ready, status, notice, setNotice, saves, activeId,
     gameState, setGameState, messages, setMessages, draft, setDraft,
-    switchTo, exportBackup, importBackup,
+    switchTo, createNew, exportBackup, importBackup,
   } = useGameSave();
-  const [view, setView] = useState<'main' | 'editor' | 'saves'>('main');
+  const vault = useVault();
+  const [busy, setBusy] = useState(false);
+  const abortRef = useRef<AbortController | null>(null);
+  const kvRef = useRef(browserKV());
+  const [usage, setUsage] = useState(() => ({ count: readUsage(kvRef.current, Date.now()).count, limit: DAILY_LIMIT }));
+  const [modelKey, setModelKeyState] = useState(() => {
+    try {
+      const v = localStorage.getItem('ai-game-model');
+      return GAME_MODELS.some((m) => m.key === v) ? (v as string) : GAME_MODELS[0].key;
+    } catch {
+      return GAME_MODELS[0].key;
+    }
+  });
+  const setModelKey = (k: string) => {
+    setModelKeyState(k);
+    try {
+      localStorage.setItem('ai-game-model', k);
+    } catch {
+      /* 保存できなくても動く */
+    }
+  };
+  // 非同期の処理の後でも、最新の状態・会話を使うための参照
+  const live = useRef({ gameState, messages });
+  live.current = { gameState, messages };
+  const [view, setView] = useState<'main' | 'editor' | 'saves' | 'ai'>('main');
   const [menuOpen, setMenuOpen] = useState(false);
   const [atBottom, setAtBottom] = useState(true);
   const logRef = useRef<HTMLDivElement>(null);
@@ -82,30 +110,69 @@ export default function App() {
     if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
   };
 
-  const send = () => {
-    if (!draft.trim()) return;
-    // 返答の番号は、これまでの送信数から決める(保存して開き直しても続きから進む)
-    const sent = messages.filter((m) => m.role === 'player').length;
-    const reply = mockReplies[sent % mockReplies.length];
-    const playerId = Math.max(0, ...messages.map((m) => m.id)) + 1;
-    // AIの変更案を検証して反映する。成立しないときは、状態を変えずに理由を表示する
-    const result = applyChanges(gameState, reply.changes);
-    const next = result.ok ? result.state : gameState;
-    setGameState(next);
-    setMessages((prev) => [
-      ...prev,
-      { id: playerId, role: 'player', text: draft },
-      {
-        id: playerId + 1,
-        role: 'ai',
-        blocks: reply.blocks,
-        state: statusOf(next),
-        notice: result.ok ? undefined : `状態の変更は反映されませんでした: ${result.error}`,
-      },
-    ]);
-    setDraft('');
+  const send = async () => {
+    const text = draft.trim();
+    if (!text || busy) return;
+    const key = vault.getKey();
+    const model = modelByKey(modelKey);
+    if (!key || !model) {
+      setNotice('AIにつながっていません。メニューの「AIの設定」で、キーの保存または解錠をしてください。');
+      return;
+    }
+    // 1日の呼び出し回数の上限。数えるのは送信しようとした回数
+    const counted = tryCount(kvRef.current, Date.now());
+    setUsage({ count: counted.count, limit: counted.limit });
+    if (!counted.ok) {
+      setNotice(`今日のAI呼び出しの上限(${counted.limit}回)に達しました。日付が変わると、また使えます。`);
+      return;
+    }
+    const ac = new AbortController();
+    abortRef.current = ac;
+    setBusy(true);
     setAtBottom(true);
+    const result = await playTurn({ model, apiKey: key, state: live.current.gameState, messages: live.current.messages, playerText: text, signal: ac.signal });
+    abortRef.current = null;
+    setBusy(false);
+    if (!result.ok) {
+      // 失敗・停止のときは、会話も状態も変えず、入力はそのまま残す(もう一度送れる)
+      setNotice(result.aborted ? '停止しました。入力は残してあります。' : `AIの返答を受け取れませんでした: ${result.error}(入力は残してあります)`);
+      return;
+    }
+    // 反映は、待っている間に手動編集があっても壊さないよう、最新の状態に対して検証する
+    const settled = settleChanges(live.current.gameState, result.changes);
+    setGameState(settled.state);
+    setMessages((prev) => {
+      const playerId = Math.max(0, ...prev.map((m) => m.id)) + 1;
+      return [
+        ...prev,
+        { id: playerId, role: 'player', text },
+        {
+          id: playerId + 1,
+          role: 'ai',
+          blocks: result.blocks,
+          state: statusOf(settled.state),
+          notice: settled.notice ?? result.notice,
+          applied: settled.applied ?? undefined,
+        },
+      ];
+    });
+    setDraft('');
   };
+
+  const undo = (id: number) => {
+    const m = live.current.messages.find((x) => x.id === id);
+    if (!m || m.role !== 'ai' || !m.applied || m.applied.undone) return;
+    setGameState(m.applied.before);
+    setMessages((prev) =>
+      prev.map((x) =>
+        x.id === id && x.role === 'ai' && x.applied
+          ? { ...x, state: statusOf(m.applied!.before), applied: { ...x.applied, undone: true }, notice: '変更を取り消しました(所持金・所持品を元に戻しました)。' }
+          : x,
+      ),
+    );
+  };
+
+  const lastAiId = [...messages].reverse().find((m) => m.role === 'ai')?.id;
 
   const closeMenu = () => {
     setMenuOpen(false);
@@ -167,6 +234,16 @@ export default function App() {
                 ),
               )}
               {m.notice && <p className="notice">{m.notice}</p>}
+              {m.applied && !m.applied.undone && (
+                <div className="changelog">
+                  <b>状態の変更</b>:{m.applied.labels.join(' / ')}
+                  {m.id === lastAiId && (
+                    <button className="link-btn" onClick={() => undo(m.id)}>
+                      取り消す
+                    </button>
+                  )}
+                </div>
+              )}
               <StatusPanel state={m.state} />
             </div>
           ),
@@ -179,6 +256,12 @@ export default function App() {
         </button>
       )}
 
+      {vault.status !== 'unlocked' && vault.status !== 'loading' && (
+        <p className="notice banner" onClick={() => { setMenuOpen(true); setView('ai'); }}>
+          AIにつながっていません。タップして、キーの保存または解錠をしてください。
+        </p>
+      )}
+      {busy && <p className="thinking">考え中…(長いときは「停止」を押せます)</p>}
       <div className="composer">
         <textarea
           ref={inputRef}
@@ -187,9 +270,15 @@ export default function App() {
           placeholder="行動は *アスタリスク* で囲みます"
           onChange={(e) => setDraft(e.target.value)}
         />
-        <button className="send" onClick={send} disabled={!draft.trim()}>
-          送信
-        </button>
+        {busy ? (
+          <button className="send" onClick={() => abortRef.current?.abort()}>
+            停止
+          </button>
+        ) : (
+          <button className="send" onClick={() => void send()} disabled={!draft.trim() || vault.status !== 'unlocked'}>
+            送信
+          </button>
+        )}
       </div>
 
       {menuOpen && <div className="backdrop" onClick={closeMenu} />}
@@ -199,6 +288,18 @@ export default function App() {
         </button>
         {view === 'editor' ? (
           <DataEditor state={gameState} onChange={setGameState} onBack={() => setView('main')} />
+        ) : view === 'ai' ? (
+          <AiSettings
+            status={vault.status}
+            onRegister={vault.register}
+            onUnlock={vault.unlock}
+            onLock={vault.lock}
+            onForget={vault.forget}
+            modelKey={modelKey}
+            onModel={setModelKey}
+            usage={usage}
+            onBack={() => setView('main')}
+          />
         ) : view === 'saves' ? (
           <SaveManager
             saves={saves}
@@ -208,6 +309,7 @@ export default function App() {
               if (r.ok) closeMenu();
               return r;
             }}
+            onNew={createNew}
             onExport={exportBackup}
             onImport={importBackup}
             onBack={() => setView('main')}
@@ -221,13 +323,18 @@ export default function App() {
                 </button>
               </li>
               <li>
+                <button className="menu-item" onClick={() => setView('ai')}>
+                  AIの設定
+                </button>
+              </li>
+              <li>
                 <button className="menu-item" onClick={() => setView('saves')}>
                   セーブとバックアップ
                 </button>
               </li>
               <li>NPC(仮)</li>
               <li>ログ検索(仮)</li>
-              <li>設定(仮)</li>
+              
             </ul>
             <p className="note">「(仮)」の項目は、まだ中身がありません。</p>
           </>

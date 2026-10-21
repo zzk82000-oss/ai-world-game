@@ -1,12 +1,13 @@
 import { createState, statusOf } from './state';
 import type { SaveData } from './save';
 
+// 新しいセーブの初期状態。舞台は港町ルセナ(世界・人物は lab/src/data/fixture.ts と共通)
 export const initialState = () =>
   createState({
-    money: 1000,
-    items: [{ name: 'スマホ' }, { name: '水', quantity: 2 }],
-    place: '工房',
-    datetime: '1日目 朝',
+    money: 3000,
+    items: [{ name: '財布' }, { name: '工房の鍵' }],
+    place: '港町ルセナ・工房通り',
+    datetime: '春 1週目 月曜 朝',
   });
 
 export function createInitialSave(id: string, now: number, name = 'はじめのセーブ'): SaveData {
@@ -23,8 +24,8 @@ export function createInitialSave(id: string, now: number, name = 'はじめの�
         id: 0,
         role: 'ai',
         blocks: [
-          { type: 'narration', text: 'これは画面の見た目と、所持金・所持品の計算を確かめるための仮の会話です。AIにはまだつながっていません。' },
-          { type: 'speech', speaker: 'セラ', text: '*行動*は、送信すると薄い灰色で表示されます。' },
+          { type: 'narration', text: '春の朝、港町ルセナ。潮の匂いが混じる工房通りに、開いたばかりの魔道具の工房がある。向かいの通りには、薬屋の看板が見える。' },
+          { type: 'narration', text: '*行動*は、アスタリスクで囲んで送ってください。' },
         ],
         state: statusOf(state),
       },

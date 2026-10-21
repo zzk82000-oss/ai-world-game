@@ -40,9 +40,9 @@ const RULES = `あなたは、プレイヤー1人のための日本語の物語�
 - promises には、新しく決まった約束を {"who":"誰と誰","what":"内容","when":"いつ"} の形で書く。`;
 
 const V3_RULE = `10. 過去の会話で商品・移動・約束などが話題になっていても、それだけでプレイヤーが承諾したとは判断しない。プレイヤーが明確に意思を示していない行動(購入・受け渡し・移動・約束など)を、成立済みとして描写しない。`;
-const rulesFor = (version: number) => (version >= 3 ? RULES.replace('\n\n# 出力形式', `\n${V3_RULE}\n\n# 出力形式`) : RULES);
+export const rulesFor = (version: number) => (version >= 3 ? RULES.replace('\n\n# 出力形式', `\n${V3_RULE}\n\n# 出力形式`) : RULES);
 
-function npcText(n: Npc): string {
+export function npcText(n: Npc, withSecret = true): string {
   const lines = [
     `## ${n.name}(${n.age}歳・${n.role})`,
     `- 性格: ${n.personality}`,
@@ -52,11 +52,11 @@ function npcText(n: Npc): string {
     `- 価値観: ${n.values.join('、')}`,
     `- 生活: ${n.routine}`,
   ];
-  if (n.secret) lines.push(`- 秘密(本人だけが知っている。簡単には明かさない): ${n.secret}`);
+  if (withSecret && n.secret) lines.push(`- 秘密(本人だけが知っている。簡単には明かさない): ${n.secret}`);
   return lines.join('\n');
 }
 
-function stateText(s: GameState): string {
+export function stateText(s: GameState): string {
   const items = s.items.map((i) => (i.quantity === undefined ? i.name : `${i.name}×${i.quantity}`)).join('、') || 'なし';
   const fac = s.facilities.map((f) => `${f.name}(${f.status})`).join('、') || 'なし';
   return [`- 日時: ${s.datetime}`, `- 場所: ${s.place}`, `- 所持金: ${s.money}${s.currency}`, `- 所持品: ${items}`, `- 設備: ${fac}`].join('\n');

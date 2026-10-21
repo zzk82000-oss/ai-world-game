@@ -6,13 +6,14 @@ type Props = {
   activeId: string;
   onOpen: (id: string) => Promise<{ ok: boolean; error?: string }>;
   onExport: () => { filename: string; text: string };
+  onNew: () => Promise<{ ok: boolean; error?: string; name?: string }>;
   onImport: (text: string) => Promise<{ ok: boolean; error?: string; name?: string }>;
   onBack: () => void;
 };
 
 const fmt = (t: number) => new Date(t).toLocaleString('ja-JP', { dateStyle: 'short', timeStyle: 'short' });
 
-export function SaveManager({ saves, activeId, onOpen, onExport, onImport, onBack }: Props) {
+export function SaveManager({ saves, activeId, onOpen, onNew, onExport, onImport, onBack }: Props) {
   const [message, setMessage] = useState('');
   const [isError, setIsError] = useState(false);
 
@@ -67,6 +68,19 @@ export function SaveManager({ saves, activeId, onOpen, onExport, onImport, onBac
           </li>
         ))}
       </ul>
+
+      <div className="row">
+        <button
+          onClick={async () => {
+            const r = await onNew();
+            if (r.ok) show(`「${r.name}」をはじめから始めました。これまでのセーブは残っています。`);
+            else show(r.error ?? '始められませんでした', true);
+          }}
+        >
+          新しくはじめる
+        </button>
+      </div>
+      <p className="note">今のセーブは消さず、別のセーブとして、はじめから始めます。</p>
 
       <h3>バックアップ</h3>
       <div className="row">

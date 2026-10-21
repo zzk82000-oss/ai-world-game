@@ -169,6 +169,22 @@ export function useGameSave() {
     [adopt, refreshList, writeNow],
   );
 
+  // 新しいセーブで、はじめから始める。今のセーブは消さずに残す
+  const createNew = useCallback(async () => {
+    const store = storeRef.current;
+    if (!store) return { ok: false as const, error: '保存できない状態のため、新しく始められません' };
+    await writeNow();
+    const names = (await store.listSaves()).map((x) => x.name);
+    let name = '新しいセーブ';
+    for (let n = 2; names.includes(name); n++) name = `新しいセーブ${n}`;
+    const save = createInitialSave(newId(), Date.now(), name);
+    await store.put(save);
+    await store.setActiveId(save.id);
+    adopt(save, '');
+    await refreshList();
+    return { ok: true as const, name };
+  }, [adopt, refreshList, writeNow]);
+
   const exportBackup = useCallback(() => {
     const cur = latest.current;
     const meta = metaRef.current;
@@ -207,6 +223,6 @@ export function useGameSave() {
   return {
     ready, status, notice, setNotice, saves, activeId,
     gameState, setGameState, messages, setMessages, draft, setDraft,
-    switchTo, exportBackup, importBackup,
+    switchTo, createNew, exportBackup, importBackup,
   };
 }
