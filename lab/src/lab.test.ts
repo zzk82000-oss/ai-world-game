@@ -358,7 +358,7 @@ describe('費用', () => {
   });
 
   it('料金が未確認のモデルは「計算できない」と分かる。利用量は 80・100・150・200回/日', () => {
-    expect(monthlyCost(modelByKey('glm-5.3-or')!, { calls: 3000, inputTokens: 6000, outputTokens: 800, regenRate: 0, extraRate: 0, rate: 160 }).known).toBe(false);
+    expect(monthlyCost({ ...modelByKey('glm-5.3-or')!, priceInputUsdPerM: undefined, priceOutputUsdPerM: undefined }, { calls: 3000, inputTokens: 6000, outputTokens: 800, regenRate: 0, extraRate: 0, rate: 160 }).known).toBe(false);
     expect(USAGE_LEVELS.map((u) => u.perDay * 30)).toEqual([2400, 3000, 4500, 6000]);
     expect(estimateTokens('こんにちは')).toBe(5);
   });
@@ -368,6 +368,26 @@ describe('費用', () => {
       expect(x.priceCheckedAt, x.key).toBeTruthy();
       expect(x.priceSource, x.key).toBeTruthy();
     }
+  });
+});
+
+describe('料金の更新(2026-10-21)', () => {
+  it('DeepSeek と GLM の料金・確認日・出典を持ち、月額の試算ができる', () => {
+    const d = modelByKey('deepseek-v4.1-flash-or')!;
+    const g = modelByKey('glm-5.3-or')!;
+    expect([d.priceInputUsdPerM, d.priceOutputUsdPerM]).toEqual([0.056, 0.12]);
+    expect([g.priceInputUsdPerM, g.priceOutputUsdPerM]).toEqual([0.079, 1.4]);
+    expect(d.priceCheckedAt).toBe('2026-10-21');
+    const c = monthlyCost(d, { calls: 2400, inputTokens: 6000, outputTokens: 1500, regenRate: 0, extraRate: 0, rate: 160 });
+    expect(c.known).toBe(true);
+    expect(c.totalJpy).toBeLessThan(300);
+  });
+
+  it('推論モデルの可能性があるモデルは出力上限を4000に揃え、非推論の MiniMax は1000のまま', () => {
+    for (const k of ['aion-3.5-mini-or', 'deepseek-v4.1-flash-or', 'glm-5.3-or']) {
+      expect(buildSentParams(modelByKey(k)!, { temperature: 0.8, max_tokens: 1000 }).sent.max_tokens, k).toBe(4000);
+    }
+    expect(buildSentParams(modelByKey('minimax-m2-her-or')!, { temperature: 0.8, max_tokens: 1000 }).sent.max_tokens).toBe(1000);
   });
 });
 
