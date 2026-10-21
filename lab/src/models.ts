@@ -142,7 +142,7 @@ export const models: ModelInfo[] = [
     structuredOutput: '未確認',
     streaming: 'OpenRouterの標準機能として可',
     contract: 'OpenRouterの前払いクレジット。',
-    adultTerms: 'OpenRouterの裏で処理する事業者ごとに異なり、未確認。',
+    adultTerms: 'OpenRouter規約(2026-10-21確認): 成人向けフィクションの直接の禁止なし。ただしモデル・提供元の規約に従う義務、ジェイルブレイク禁止。ゼロ保持の設定で実際に回る提供元の規約(2026-10-21確認): InferenceNet=ユーザーコンテンツに「ヌードや性的に示唆的な内容」を含めないことを保証する条項があり、成人向けには使えない。Novita=AUP 5(7)が「性的に露骨(sexually explicit)」を禁止、成人向け(露骨な内容)には使えない。ほかの提供元(Fireworks・Together・Phala など)は未確認。',
     dataPolicy: '事業者ごとに異なり、未確認。',
     notes: 'OpenRouterのロールプレイ部門で利用量1位。提供元が複数あり、OpenRouterが自動で振り分ける(提供元ごとにデータの扱い・速度・質が違う可能性がある。盾のマークは緑が多く、AtlasCloudだけ黄色(!))。',
     sources: ['https://openrouter.ai/deepseek/deepseek-v4.1-flash', 'https://openrouter.ai/collections/roleplay'],
