@@ -4,7 +4,9 @@ import { COMPARISON_LABEL, comparisonKind, hasSerious, seriousLabels, totalScore
 import {
   CRITERIA,
   OVERALL_RATINGS,
+  MISMATCHES,
   PROBLEM_TYPES,
+  type MismatchKey,
   SERIOUS_ISSUES,
   type CriterionKey,
   type Evaluation,
@@ -38,6 +40,10 @@ function QuickEval({ result, onSave }: { result: RunResult; onSave: (r: RunResul
   };
   const toggleProblem = (k: ProblemKey) =>
     save({ ...q, problems: q.problems.includes(k) ? q.problems.filter((x) => x !== k) : [...q.problems, k] });
+  const toggleMismatch = (k: MismatchKey) => {
+    const cur = q.mismatch ?? [];
+    save({ ...q, mismatch: cur.includes(k) ? cur.filter((x) => x !== k) : [...cur, k] });
+  };
   return (
     <div className="quick">
       <h4>簡易評価 {result.quick ? '' : '(未評価)'}</h4>
@@ -63,6 +69,13 @@ function QuickEval({ result, onSave }: { result: RunResult; onSave: (r: RunResul
           </button>
         ))}
       </div>
+      <p className="note">本文と状態変更の提案の食い違い(あれば)</p>
+      {MISMATCHES.map((m) => (
+        <label key={m.key} className="check">
+          <input type="checkbox" checked={q.mismatch?.includes(m.key) ?? false} onChange={() => toggleMismatch(m.key)} />
+          {m.label}
+        </label>
+      ))}
       <input
         className="reason"
         placeholder="一言コメント(任意)"
@@ -105,6 +118,7 @@ export function ResultCard({ result, onSave }: { result: RunResult; onSave: (r: 
         <span className="badge">{result.live ? '実通信' : '模擬'}</span>
         <span className="badge">指示文 v{result.promptVersion ?? 1}</span>
         {result.track === 'stress' && <span className="badge stress">耐性テスト(追加検証)</span>}
+        {result.track === 'control' && <span className="badge stress">対照テスト</span>}
         <span className="badge">{COMPARISON_LABEL[comparisonKind(result)]}</span>
         {result.quick?.overall && <span className="badge">評価 {result.quick.overall}</span>}
         {seriousAny && <span className="badge fail">重大問題あり</span>}

@@ -25,3 +25,9 @@ export const badOutputs: Record<string, string> = {
 
 // B2(耐性テスト)のよい例は、B1 と同じ「知らないものとして振る舞う」返答
 goodOutputs.B2 = goodOutputs.B1;
+
+// 対照テスト(B1N・B2N)は、B1・B2 と同じ返答
+goodOutputs.B1N = goodOutputs.B1;
+goodOutputs.B2N = goodOutputs.B1;
+badOutputs.B1N = badOutputs.B1;
+badOutputs.B2N = badOutputs.B2;

@@ -17,6 +17,7 @@ const KEY_TTL_MS = 15 * 60 * 1000; // 入力したキーは15分で自動的に�
 
 const standardScenarios = scenarios.filter((s) => s.track === 'standard');
 const stressScenarios = scenarios.filter((s) => s.track === 'stress');
+const controlScenarios = scenarios.filter((s) => s.track === 'control');
 
 function download(filename: string, text: string, type: string) {
   const url = URL.createObjectURL(new Blob([text], { type }));
@@ -188,6 +189,9 @@ function RunTab({ keys, verified, rate, onResult }: { keys: Keys; verified: Set<
           <optgroup label="追加検証(通常の評価と混ぜない)">
             {stressScenarios.map((s) => <option key={s.id} value={s.id}>{s.title}</option>)}
           </optgroup>
+          <optgroup label="対照テスト(履歴の影響を見る。B1・B2と混ぜない)">
+            {controlScenarios.map((s) => <option key={s.id} value={s.id}>{s.title}</option>)}
+          </optgroup>
         </select>
       </label>
 
@@ -315,6 +319,30 @@ function summarize(rs: RunResult[]) {
   };
 }
 
+// モデル × シナリオごとの、実通信(指示文v2・成功)の回数。追加実測の回数を決めるための表
+function CountTable({ results }: { results: RunResult[] }) {
+  const live = results.filter((r) => r.live && r.status === 'success' && (r.promptVersion ?? 1) === PROMPT_VERSION);
+  const names = [...new Set(live.map((r) => r.modelName))];
+  if (!names.length) return <p className="note">まだ実通信の結果がありません。</p>;
+  return (
+    <div className="table-wrap">
+      <table>
+        <thead>
+          <tr><th>モデル</th>{scenarios.map((s) => <th key={s.id}>{s.id}</th>)}</tr>
+        </thead>
+        <tbody>
+          {names.map((n) => (
+            <tr key={n}>
+              <td>{n}</td>
+              {scenarios.map((s) => <td key={s.id}>{live.filter((r) => r.modelName === n && r.scenarioId === s.id).length}</td>)}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 function CompareTable({ results }: { results: RunResult[] }) {
   const groups = new Map<string, RunResult[]>();
   // 指示文の版が違う結果、共通条件と実運用(個別設定あり)の結果は混ぜずに、別の行にする
@@ -375,6 +403,12 @@ function ResultsTab({ results, onSave, onClear }: { results: RunResult[]; onSave
       <h2>追加検証(耐性テスト)</h2>
       <CompareTable results={results.filter((r) => r.track === 'stress')} />
       <p className="note">B2 は、あえて他人の秘密を渡す耐性テストです。通常の評価とは混ぜずに見てください。</p>
+      <h2>対照テスト(購入の話題を含まない履歴)</h2>
+      <CompareTable results={results.filter((r) => r.track === 'control')} />
+      <p className="note">B1N・B2N は、B1・B2 と同じ質問・同じ判定で、会話履歴からカモミールの購入の話題を除いたものです。B1・B2 との差で、履歴の影響を見ます。</p>
+
+      <h2>実通信の回数(指示文v2・成功のみ)</h2>
+      <CountTable results={results} />
 
       <div className="row wrap">
         <button disabled={!results.length} onClick={() => download(`ai-lab-results-${Date.now()}.json`, toJson(results, Date.now()), 'application/json')}>JSONで書き出す</button>
@@ -402,7 +436,7 @@ function ResultsTab({ results, onSave, onClear }: { results: RunResult[]; onSave
             <li key={r.id}>
               <button className={`row-btn ${serious ? 'serious' : ''}`} onClick={() => setOpen(open === r.id ? null : r.id)}>
                 {serious ? '⚠ 重大問題 ・ ' : ''}
-                {r.scenarioId}{r.track === 'stress' ? '(耐性)' : ''} ・ {r.modelName} ・ {r.repeat}回目 ・ {{ success: '成功', error: '失敗', aborted: '停止' }[r.status]}
+                {r.scenarioId}{r.track === 'stress' ? '(耐性)' : r.track === 'control' ? '(対照)' : ''} ・ {r.modelName} ・ {r.repeat}回目 ・ {{ success: '成功', error: '失敗', aborted: '停止' }[r.status]}
                 {' ・ '}
                 {r.quick?.overall ?? '未評価'}{score !== undefined ? `(詳細${score}点)` : ''}
                 {r.checks.some((c) => c.basis === 'mechanical' && c.outcome === 'fail') ? ' ・ 確定の不合格あり' : ''}

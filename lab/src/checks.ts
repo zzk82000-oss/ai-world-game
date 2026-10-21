@@ -82,6 +82,21 @@ export function runChecks(scenario: Scenario, output: string, parsed: ParsedOutp
         });
         break;
       }
+      case 'noTransactionTalk': {
+        // 本文だけを見る。語の有無による目安(「お代はいただきます」のような話題の紹介でも該当する)
+        const TALK = /\d[\d,]*\s*G|代金|お代|お会計|お買い上げ|購入|お包み|包んで|包みながら|受け取っておき|お売り|毎度/g;
+        const found = [...new Set(body.match(TALK) ?? [])];
+        const moves = (parsed.changes ?? []).filter((c) => MONEY_TYPES.includes(c.type));
+        results.push({
+          label: rule.label,
+          basis: 'heuristic',
+          outcome: found.length ? 'warn' : 'pass',
+          detail: found.length
+            ? `本文に取引を思わせる語があります: ${found.join('、')}。${moves.length ? '状態変更の提案にも所持金の変更があります' : parsed.changes === null ? '状態変更の提案は読み取れませんでした' : '状態変更の提案には所持金の変更がありません(本文と状態が食い違う疑い)'}。商品の紹介だけなのか、取引が成立したように書いているのか、文脈を読んで判断してください`
+            : '取引を思わせる語はありません(言い換えは検出できないため、問題がないとは限りません)',
+        });
+        break;
+      }
       case 'paymentWithinFunds': {
         if (!parsed.changes) {
           results.push({ label: rule.label, basis: 'mechanical', outcome: 'skip', detail: '状態変更の提案がないため判定できません。会話文の内容は人が確認してください' });

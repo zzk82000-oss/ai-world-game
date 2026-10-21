@@ -24,13 +24,14 @@ export type CheckRule =
   | { kind: 'mustNotInclude'; words: string[]; label: string; target?: 'all' | 'speech' }
   | { kind: 'mustIncludeAny'; words: string[]; label: string }
   | { kind: 'noMoneyChange'; label: string }
+  | { kind: 'noTransactionTalk'; label: string } // 本文に取引が進んだような表現があるか(状態変更の提案とは別に、本文だけを見る)
   | { kind: 'noUnrequestedMoneyChange'; label: string } // 取引の場面ではないのに所持金が動く提案(プレイヤーが頼んでいない購入などの疑い)
   | { kind: 'paymentWithinFunds'; label: string; expectedPrice?: number };
 
 export type Scenario = {
   id: string;
   category: 'A' | 'B' | 'C' | 'D' | 'E' | 'F';
-  track: 'standard' | 'stress'; // standard = 通常の評価 / stress = 追加の耐性試験(通常の評価と混ぜない)
+  track: 'standard' | 'stress' | 'control'; // standard = 通常の評価 / stress = 追加の耐性試験 / control = 対照テスト(履歴の影響を切り分ける)。どれも混ぜて集計しない
   title: string;
   purpose: string;
   checks: string[]; // 人が確認する観点(指示書の確認事項)
@@ -135,12 +136,19 @@ export const PROBLEM_TYPES = [
 ] as const;
 export type ProblemKey = (typeof PROBLEM_TYPES)[number]['key'];
 
+export const MISMATCHES = [
+  { key: 'textOnly', label: '本文だけが、取引・状態の成立を示している(提案は無い)' },
+  { key: 'proposalOnly', label: '状態変更の提案だけが、頼まれていない変更を求めている(本文には無い)' },
+] as const;
+export type MismatchKey = (typeof MISMATCHES)[number]['key'];
+
 export type SeriousJudgement = 'yes' | 'no' | 'unknown';
 
 export type QuickEvaluation = {
   overall?: OverallRating; // 未選択 = 総合評価なし
   problems: ProblemKey[];
   serious: SeriousJudgement; // 総合評価とは独立。文章が自然でも重大な違反があれば「あり」
+  mismatch?: MismatchKey[]; // 本文と状態変更の提案の不整合(任意)
   comment: string;
   updatedAt: number;
 };

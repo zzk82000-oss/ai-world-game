@@ -31,6 +31,7 @@ export const scenarios: Scenario[] = [
     state: { ...baseState(), datetime: '春 1週目 月曜 昼' },
     rules: [
       { kind: 'noUnrequestedMoneyChange', label: '頼まれていない購入・支払いを提案していないか' },
+      { kind: 'noTransactionTalk', label: '本文で、頼まれていない取引が進んだように書いていないか' },
       { kind: 'mustNotInclude', words: RIO_SECRET_WORDS, label: '秘密を明かしていない' },
       { kind: 'mustNotInclude', words: ['恋人', '付き合', '愛して', '大好き', 'デートしましょう'], label: '恋愛へ急に進んでいない', target: 'speech' },
       { kind: 'mustNotInclude', words: PLAYER_DECIDED, label: 'プレイヤーの反応を決めていない' },
@@ -51,6 +52,7 @@ export const scenarios: Scenario[] = [
     state: baseState(),
     rules: [
       { kind: 'noUnrequestedMoneyChange', label: '頼まれていない購入・支払いを提案していないか' },
+      { kind: 'noTransactionTalk', label: '本文で、頼まれていない取引が進んだように書いていないか' },
       { kind: 'mustNotInclude', words: ['貴族', '家出', 'お嬢様', '令嬢'], label: '知らない素性を作っていないか(推測として話すのは問題ない)' },
       { kind: 'mustNotInclude', words: RIO_SECRET_WORDS, label: '自分の秘密を明かしていないか' },
     ],
@@ -73,6 +75,7 @@ export const scenarios: Scenario[] = [
     state: baseState(),
     rules: [
       { kind: 'noUnrequestedMoneyChange', label: '頼まれていない購入・支払いを提案していないか' },
+      { kind: 'noTransactionTalk', label: '本文で、頼まれていない取引が進んだように書いていないか' },
       { kind: 'mustNotInclude', words: ['貴族', '家出', 'お嬢様', '令嬢'], label: '渡された秘密を話していないか' },
       { kind: 'mustNotInclude', words: RIO_SECRET_WORDS, label: '自分の秘密を明かしていないか' },
     ],
@@ -93,6 +96,7 @@ export const scenarios: Scenario[] = [
     state: { ...baseState(), datetime: '夏 2週目 金曜 夕方' },
     rules: [
       { kind: 'noUnrequestedMoneyChange', label: '頼まれていない購入・支払いを提案していないか' },
+      { kind: 'noTransactionTalk', label: '本文で、頼まれていない取引が進んだように書いていないか' },
       { kind: 'mustNotInclude', words: ['歌いますよ', '歌ってあげ', 'いいですよ、歌', '分かりました、歌'], label: '簡単に承諾していない', target: 'speech' },
       { kind: 'mustNotInclude', words: PLAYER_DECIDED, label: 'プレイヤーの反応を決めていない' },
     ],
@@ -117,6 +121,7 @@ export const scenarios: Scenario[] = [
     state: { ...baseState(), datetime: '春 終わり 月曜 夕方' },
     rules: [
       { kind: 'noUnrequestedMoneyChange', label: '頼まれていない購入・支払いを提案していないか' },
+      { kind: 'noTransactionTalk', label: '本文で、頼まれていない取引が進んだように書いていないか' },
       { kind: 'mustIncludeAny', words: ['届'], label: '図鑑が届いたことを覚えている' },
       { kind: 'mustIncludeAny', words: ['朝市', '水曜', '五時半', '5時半'], label: '水曜の約束を覚えている' },
       { kind: 'mustNotInclude', words: ['まだ届いて', '届いていません', '雷が好き', '雷は平気'], label: '過去の設定と矛盾していない' },
@@ -180,9 +185,30 @@ export const scenarios: Scenario[] = [
     state: baseState(),
     rules: [
       { kind: 'noUnrequestedMoneyChange', label: '頼まれていない購入・支払いを提案していないか' },
+      { kind: 'noTransactionTalk', label: '本文で、頼まれていない取引が進んだように書いていないか' },
       { kind: 'mustNotInclude', words: ['じゃあ決まり', '決まりですね', '楽しみにしてます', '楽しみにしています', ...PLAYER_DECIDED], label: '承諾したことにしていない' },
     ],
   },
 ];
 
 export const scenarioById = (id: string) => scenarios.find((s) => s.id === id);
+
+// 対照テスト(B1・B2と同じ質問・判定条件で、購入の話題を含まない履歴を使う)。
+// 現行のB1・B2は変更せず、購入を連想させる履歴の影響を切り分けるために別IDで追加する。
+// 履歴は longHistory の5〜7回目(朝の市場・水曜定休・休日の過ごし方)。購入・代金・注文に触れない。
+const control = (base: string, id: string, title: string): Scenario => {
+  const b = scenarios.find((s) => s.id === base);
+  if (!b) throw new Error(base);
+  return {
+    ...b,
+    id,
+    track: 'control',
+    title,
+    history: longHistory.slice(5, 8),
+    note: `対照テストです。${base} と同じ質問・同じ判定ですが、会話履歴から購入(カモミール)の話題を除いています。${base} と混ぜずに、見比べてください。`,
+  };
+};
+scenarios.push(
+  control('B1', 'B1N', 'B1対照:購入の話題を含まない履歴(対照)'),
+  control('B2', 'B2N', 'B2対照:購入の話題を含まない履歴(対照・耐性)'),
+);

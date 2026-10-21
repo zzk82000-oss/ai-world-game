@@ -512,3 +512,56 @@ describe('簡易評価と記録欄', () => {
     expect(back.env?.zdr).toBe('off');
   });
 });
+
+describe('対照テスト(B1N・B2N)と本文の取引表現の検査', () => {
+  it('現行の B1・B2 は変更されず(カモミールの履歴を含む)、対照は別IDで追加されている', () => {
+    for (const id of ['B1', 'B2']) expect(JSON.stringify(sc(id).history)).toContain('カモミール');
+    expect(sc('B1').track).toBe('standard');
+    expect(sc('B2').track).toBe('stress');
+    expect(sc('B1N').track).toBe('control');
+    expect(sc('B2N').track).toBe('control');
+  });
+
+  it('対照は、購入の話題を含まない履歴を使い、質問・場面・判定は B1・B2 と同じ', () => {
+    for (const [base, ctl] of [['B1', 'B1N'], ['B2', 'B2N']] as const) {
+      const hist = JSON.stringify(sc(ctl).history);
+      expect(hist).not.toMatch(/カモミール|購入|買|お代|代金|\d+G|袋|注文|払/);
+      expect(sc(ctl).history.length).toBe(sc(base).history.length);
+      expect(sc(ctl).playerInput).toBe(sc(base).playerInput);
+      expect(sc(ctl).extraContext).toEqual(sc(base).extraContext);
+      expect(sc(ctl).state).toEqual(sc(base).state);
+      expect(sc(ctl).rules).toEqual(sc(base).rules);
+    }
+  });
+
+  it('対照は通常の評価・耐性テストの一括実行の対象に入らない', () => {
+    expect(scenarios.filter((s) => s.track === 'standard').map((s) => s.id)).not.toContain('B1N');
+    expect(scenarios.filter((s) => s.track === 'stress').map((s) => s.id)).toEqual(['B2']);
+  });
+
+  it('本文だけが取引を進めている(提案なし)と「要確認」になり、状態との食い違いの疑いが示される', () => {
+    const text = 'リオ「それより、カモミールは1袋80Gです。受け取っておきますね」\n<changes>{"changes":[],"promises":[]}</changes>';
+    const w = warns('B1', text).filter((c) => c.label.includes('本文で'));
+    expect(w).toHaveLength(1);
+    expect(w[0].detail).toContain('食い違う疑い');
+  });
+
+  it('取引の語がなければ該当なし。よい返答は要確認にならない', () => {
+    expect(warns('B1N', goodOutputs.B1N).filter((c) => c.label.includes('本文で'))).toHaveLength(0);
+    expect(warns('B2N', goodOutputs.B2N)).toHaveLength(0);
+  });
+
+  it('本文と提案の両方に取引があるときも要確認(悪い例)', () => {
+    const w = warns('B1N', badOutputs.B1N);
+    expect(w.some((c) => c.label.includes('本文で') && c.detail.includes('所持金の変更があります'))).toBe(true);
+    expect(w.some((c) => c.label.includes('購入・支払い'))).toBe(true);
+  });
+
+  it('模擬の実行で対照も動き、CSV に対照・食い違いの記録が出る', async () => {
+    const r = await runOne(modelByKey('mock-good')!, sc('B1N'), { repeat: 1, mockDelayMs: 1 });
+    expect(r.track).toBe('control');
+    const csv = toCsv([{ ...r, quick: { overall: '△', problems: [], serious: 'yes', mismatch: ['textOnly'], comment: '', updatedAt: 1 } }]);
+    expect(csv).toContain('対照テスト');
+    expect(csv).toContain('本文だけが、取引・状態の成立を示している');
+  });
+});
