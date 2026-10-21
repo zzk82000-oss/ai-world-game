@@ -222,3 +222,51 @@ describe('1ターンの処理', () => {
     expect(describeChange({ type: 'addItem', name: '小瓶', quantity: 2 })).toBe('「小瓶×2」を入手');
   });
 });
+
+describe('成人向けモードと提供元の指定', () => {
+  const sysOf = (adult: boolean) => buildGameMessages(initialState(), createInitialSave('a', 1).messages, 'x', undefined, { adult })[0].content;
+
+  it('既定(オフ)では、成人向けの指示は入らない', () => {
+    expect(sysOf(false)).not.toContain('成人向けモード');
+    expect(sysOf(false)).not.toContain('21歳未満');
+  });
+
+  it('オンにすると、成人どうし・合意・21歳以上だけ、という決まりが入り、21歳未満の人物(ミラ19歳)に注意書きが付く', () => {
+    const s = sysOf(true);
+    expect(s).toContain('成人向けモード(有効)');
+    expect(s).toContain('合意に基づく');
+    expect(s).toContain('21歳以上と設定された人物だけ');
+    expect(s).toContain('年齢が不明・曖昧な人物は、どんな場合も、性的な場面に関わらせない');
+    const mira = s.slice(s.indexOf('## ミラ'), s.indexOf('## ガロ'));
+    expect(mira).toContain('21歳未満: 性的な場面には、どんな場合も関わらせない');
+    const rio = s.slice(s.indexOf('## リオ'), s.indexOf('## ミラ'));
+    expect(rio).not.toContain('21歳未満');
+  });
+
+  it('オンでも、プレイヤーの行動・感情を勝手に書かない決まり(v2の2番)と、NPCの秘密を渡さない扱いは変わらない', () => {
+    const s = sysOf(true);
+    expect(s).toContain('プレイヤー(カイ)の行動・発言・感情・決定を書かない');
+    expect(s).not.toContain('宮廷薬師');
+  });
+
+  it('提供元を指定したときだけ、その提供元に限定・他へ切り替えない・ZDRの提供元だけ、で送る', async () => {
+    const bodies: Record<string, unknown>[] = [];
+    const f = (async (_u: unknown, init?: RequestInit) => {
+      bodies.push(JSON.parse(String(init?.body)));
+      return okBody('リオ「どうも」');
+    }) as unknown as typeof fetch;
+    const base = { model, apiKey: KEY, state: initialState(), messages: createInitialSave('a', 1).messages, playerText: 'x', fetchImpl: f };
+    await playTurn(base);
+    await playTurn({ ...base, providerPin: '  example/fp8 ' });
+    expect('provider' in bodies[0]).toBe(false);
+    expect(bodies[1].provider).toEqual({ order: ['example/fp8'], only: ['example/fp8'], allow_fallbacks: false, zdr: true });
+    expect(JSON.stringify(bodies[1])).not.toContain(KEY);
+  });
+
+  it('形式が正しくない提供元の識別名では、送信せずに失敗にする', async () => {
+    const calls = vi.fn();
+    const r = await playTurn({ model, apiKey: KEY, state: initialState(), messages: [], playerText: 'x', providerPin: 'a b;c', fetchImpl: calls as unknown as typeof fetch });
+    expect(r.ok).toBe(false);
+    expect(calls).not.toHaveBeenCalled();
+  });
+});

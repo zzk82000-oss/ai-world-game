@@ -66,6 +66,35 @@ export default function App() {
       return GAME_MODELS[0].key;
     }
   });
+  const store = (key: string, v: string) => {
+    try {
+      localStorage.setItem(key, v);
+    } catch {
+      /* 保存できなくても動く */
+    }
+  };
+  const [adult, setAdultState] = useState(() => {
+    try {
+      return localStorage.getItem('ai-game-adult') === '1';
+    } catch {
+      return false;
+    }
+  });
+  const setAdult = (on: boolean) => {
+    setAdultState(on);
+    store('ai-game-adult', on ? '1' : '0');
+  };
+  const [providerPin, setPinState] = useState(() => {
+    try {
+      return localStorage.getItem('ai-game-provider-pin') ?? '';
+    } catch {
+      return '';
+    }
+  });
+  const setProviderPin = (v: string) => {
+    setPinState(v);
+    store('ai-game-provider-pin', v);
+  };
   const setModelKey = (k: string) => {
     setModelKeyState(k);
     try {
@@ -130,7 +159,7 @@ export default function App() {
     abortRef.current = ac;
     setBusy(true);
     setAtBottom(true);
-    const result = await playTurn({ model, apiKey: key, state: live.current.gameState, messages: live.current.messages, playerText: text, signal: ac.signal });
+    const result = await playTurn({ model, apiKey: key, state: live.current.gameState, messages: live.current.messages, playerText: text, signal: ac.signal, adult, providerPin });
     abortRef.current = null;
     setBusy(false);
     if (!result.ok) {
@@ -191,7 +220,7 @@ export default function App() {
     <div className="app">
       <header className="header">
         <h1>
-          AIゲーム <small className={`save-status ${status}`}>{{ saved: '保存済み', saving: '保存中…', error: '保存できません', unavailable: '保存なし' }[status]}</small>
+          AIゲーム{adult && <small className="adult-badge"> 成人向け</small>} <small className={`save-status ${status}`}>{{ saved: '保存済み', saving: '保存中…', error: '保存できません', unavailable: '保存なし' }[status]}</small>
         </h1>
         <button className="icon-btn" aria-label="メニュー" onClick={() => setMenuOpen(true)}>
           ☰
@@ -298,6 +327,10 @@ export default function App() {
             modelKey={modelKey}
             onModel={setModelKey}
             usage={usage}
+            adult={adult}
+            onAdult={setAdult}
+            providerPin={providerPin}
+            onProviderPin={setProviderPin}
             onBack={() => setView('main')}
           />
         ) : view === 'saves' ? (

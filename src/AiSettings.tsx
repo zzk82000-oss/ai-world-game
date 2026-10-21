@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { DAILY_LIMIT } from './ai/usage';
 import type { VaultStatus } from './ai/useVault';
+import { ADULT_MIN_AGE } from './ai/narrator';
 import { MIN_PASSPHRASE } from './ai/vault';
+import { validProviderSlug } from '../lab/src/providers';
 
 export const GAME_MODELS = [
   { key: 'deepseek-v4.1-flash-or', label: 'DeepSeek V4.1 Flash(既定・安い)' },
@@ -17,10 +19,14 @@ type Props = {
   modelKey: string;
   onModel: (key: string) => void;
   usage: { count: number; limit: number };
+  adult: boolean;
+  onAdult: (on: boolean) => void;
+  providerPin: string;
+  onProviderPin: (v: string) => void;
   onBack: () => void;
 };
 
-export function AiSettings({ status, onRegister, onUnlock, onLock, onForget, modelKey, onModel, usage, onBack }: Props) {
+export function AiSettings({ status, onRegister, onUnlock, onLock, onForget, modelKey, onModel, usage, adult, onAdult, providerPin, onProviderPin, onBack }: Props) {
   const [apiKey, setApiKey] = useState('');
   const [pass, setPass] = useState('');
   const [pass2, setPass2] = useState('');
@@ -65,6 +71,44 @@ export function AiSettings({ status, onRegister, onUnlock, onLock, onForget, mod
           </option>
         ))}
       </select>
+
+      <h3>提供元の指定(任意)</h3>
+      <input
+        value={providerPin}
+        onChange={(e) => onProviderPin(e.target.value)}
+        placeholder="空欄 = OpenRouter が選ぶ"
+        autoComplete="off"
+        autoCapitalize="none"
+        autoCorrect="off"
+        spellCheck={false}
+      />
+      {providerPin.trim() !== '' && !validProviderSlug(providerPin.trim()) && <p className="error">識別名の形式が正しくありません(英数字と . _ / - のみ)。</p>}
+      <p className="note">
+        指定すると、その提供元だけに送り、使えなければ他へ切り替えずにエラーにします。ZDR(データを残さない)の提供元だけに限定します。
+        識別名は、OpenRouter のモデルのページの提供元一覧で確認してください。提供元の利用規約は、自分で確認してください。
+      </p>
+
+      <h3>成人向けモード</h3>
+      <label className="check">
+        <input
+          type="checkbox"
+          checked={adult}
+          onChange={(e) => {
+            if (!e.target.checked) return onAdult(false);
+            if (
+              confirm(
+                `成人向けモードをオンにします。\n・性的な場面に関われるのは、${ADULT_MIN_AGE}歳以上と設定された人物だけです。\n・成人どうしの、合意に基づくフィクションです。\n・使うモデルと提供元の利用規約が、成人向けの内容を許可しているかを、自分で確認してから使ってください。\n\nオンにしますか？`,
+              )
+            )
+              onAdult(true);
+          }}
+        />
+        オン(既定はオフ)
+      </label>
+      <p className="note">
+        オンにすると、AIへの指示に、成人向けの決まりが加わります。{ADULT_MIN_AGE}歳未満の人物(例: ミラ19歳)は、どんな場合も性的な場面に関わりません。
+        規約上できないモデル・提供元では、拒否されたり、弱められたりします。
+      </p>
 
       <h3>今日の呼び出し回数</h3>
       <p>

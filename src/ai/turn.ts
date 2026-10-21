@@ -17,6 +17,8 @@ export type TurnInput = {
   playerText: string;
   signal?: AbortSignal;
   fetchImpl?: typeof fetch;
+  adult?: boolean; // 成人向けモード
+  providerPin?: string; // 提供元の指定(OpenRouter・任意。ZDRの提供元だけ・他へ切り替えない)
 };
 
 export type TurnResult =
@@ -52,7 +54,7 @@ export function describeChange(c: Change): string {
 }
 
 export async function playTurn(input: TurnInput): Promise<TurnResult> {
-  const messages = buildGameMessages(input.state, input.messages, input.playerText);
+  const messages = buildGameMessages(input.state, input.messages, input.playerText, undefined, { adult: input.adult });
   const { sent } = buildSentParams(input.model, { ...GENERATION_PARAMS });
   const out = await callModel(input.model, messages, sent, {
     scenarioId: 'game',
@@ -61,6 +63,7 @@ export async function playTurn(input: TurnInput): Promise<TurnResult> {
     verifiedEndpoints: new Set(['openrouter']),
     signal: input.signal,
     fetchImpl: input.fetchImpl,
+    providerPin: input.providerPin?.trim() || undefined,
   });
   if (out.status !== 'success') {
     return { ok: false, aborted: out.status === 'aborted', error: out.error ?? '返答を受け取れませんでした' };
