@@ -108,6 +108,7 @@ export function AiSettings({ status, onRegister, onUnlock, onLock, onForget, mod
       <p className="note">
         オンにすると、AIへの指示に、成人向けの決まりが加わります。{ADULT_MIN_AGE}歳未満の人物(例: ミラ19歳)は、どんな場合も性的な場面に関わりません。
         規約上できないモデル・提供元では、拒否されたり、弱められたりします。
+        オンのときは、上の「提供元の指定」が必須です(規約を確認した提供元に固定していないと、送信しません)。
       </p>
 
       <h3>今日の呼び出し回数</h3>

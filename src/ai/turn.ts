@@ -54,6 +54,10 @@ export function describeChange(c: Change): string {
 }
 
 export async function playTurn(input: TurnInput): Promise<TurnResult> {
+  // 成人向けモードは、規約を確認した提供元に固定しているときだけ送る(提供元はリクエストごとに変わり、規約が異なるため)
+  if (input.adult && !input.providerPin?.trim()) {
+    return { ok: false, aborted: false, error: '成人向けモードでは、規約を確認した提供元を「AIの設定」の「提供元の指定」で設定する必要があります(未設定のまま送信しません)' };
+  }
   const messages = buildGameMessages(input.state, input.messages, input.playerText, undefined, { adult: input.adult });
   const { sent } = buildSentParams(input.model, { ...GENERATION_PARAMS });
   const out = await callModel(input.model, messages, sent, {

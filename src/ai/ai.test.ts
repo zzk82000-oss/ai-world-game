@@ -270,3 +270,31 @@ describe('成人向けモードと提供元の指定', () => {
     expect(calls).not.toHaveBeenCalled();
   });
 });
+
+describe('成人向けモードは提供元の指定が必須', () => {
+  it('提供元が未指定のままでは、送信しない', async () => {
+    const f = vi.fn();
+    const r = await playTurn({ model, apiKey: KEY, state: initialState(), messages: [], playerText: 'x', adult: true, fetchImpl: f as unknown as typeof fetch });
+    expect(r).toMatchObject({ ok: false });
+    expect(f).not.toHaveBeenCalled();
+    const r2 = await playTurn({ model, apiKey: KEY, state: initialState(), messages: [], playerText: 'x', adult: true, providerPin: '  ', fetchImpl: f as unknown as typeof fetch });
+    expect(r2.ok).toBe(false);
+    expect(f).not.toHaveBeenCalled();
+  });
+
+  it('提供元を指定していれば送信し、その提供元に限定される', async () => {
+    let body: Record<string, unknown> = {};
+    const f = (async (_u: unknown, init?: RequestInit) => {
+      body = JSON.parse(String(init?.body));
+      return okBody('リオ「どうも」');
+    }) as unknown as typeof fetch;
+    const r = await playTurn({ model, apiKey: KEY, state: initialState(), messages: [], playerText: 'x', adult: true, providerPin: 'example', fetchImpl: f });
+    expect(r.ok).toBe(true);
+    expect(body.provider).toMatchObject({ only: ['example'], allow_fallbacks: false, zdr: true });
+  });
+
+  it('成人向けモードがオフなら、提供元の指定は不要', async () => {
+    const f = (async () => okBody('リオ「どうも」')) as unknown as typeof fetch;
+    expect((await playTurn({ model, apiKey: KEY, state: initialState(), messages: [], playerText: 'x', fetchImpl: f })).ok).toBe(true);
+  });
+});
