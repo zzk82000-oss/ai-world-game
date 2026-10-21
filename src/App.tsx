@@ -6,6 +6,8 @@ import { browserKV, DAILY_LIMIT, readUsage, tryCount } from './ai/usage';
 import { useVault } from './ai/useVault';
 import { statusOf, type StatusSnapshot } from './game/state';
 import { modelByKey } from '../lab/src/models';
+import { validProviderSlug } from '../lab/src/providers';
+import type { ModelInfo } from '../lab/src/types';
 import { RichText } from './RichText';
 import { SaveManager } from './SaveManager';
 import { useGameSave } from './useGameSave';
@@ -84,6 +86,25 @@ export default function App() {
     setAdultState(on);
     store('ai-game-adult', on ? '1' : '0');
   };
+  const [veniceModelId, setVeniceIdState] = useState(() => {
+    try {
+      return localStorage.getItem('ai-game-venice-model') ?? '';
+    } catch {
+      return '';
+    }
+  });
+  const setVeniceModelId = (v: string) => {
+    setVeniceIdState(v);
+    store('ai-game-venice-model', v);
+  };
+  // 選んだモデルの情報。「IDで指定」のときは、Venice 用のモデルを土台に、IDだけを差し替える(料金は不明なので、費用は計算しない)
+  const resolveModel = (): ModelInfo | undefined => {
+    if (modelKey !== 'venice-custom') return modelByKey(modelKey);
+    const id = veniceModelId.trim();
+    const base = modelByKey('venice-uncensored-1-2');
+    if (!base || !id || !validProviderSlug(id)) return undefined;
+    return { ...base, key: 'venice-custom', displayName: `Venice: ${id}`, apiModelId: id, priceInputUsdPerM: undefined, priceOutputUsdPerM: undefined };
+  };
   const [providerPin, setPinState] = useState(() => {
     try {
       return localStorage.getItem('ai-game-provider-pin') ?? '';
@@ -142,9 +163,13 @@ export default function App() {
   const send = async () => {
     const text = draft.trim();
     if (!text || busy) return;
-    const model = modelByKey(modelKey);
-    const ep = model?.endpointId === 'venice' ? 'venice' : 'openrouter';
+    const model = resolveModel();
+    const ep = modelKey.startsWith('venice') ? 'venice' : 'openrouter';
     const key = vault.getKey(ep);
+    if (modelKey === 'venice-custom' && !model) {
+      setNotice('Venice のモデルIDが、未入力か、形式が正しくありません(「AIの設定」で入力してください)。');
+      return;
+    }
     if (!key || !model) {
       setNotice(`${ep === 'venice' ? 'Venice' : 'OpenRouter'} につながっていません。メニューの「AIの設定」で、キーの保存または解錠をしてください。`);
       return;
@@ -202,7 +227,7 @@ export default function App() {
     );
   };
 
-  const chosenEp = modelByKey(modelKey)?.endpointId === 'venice' ? 'venice' : 'openrouter';
+  const chosenEp = modelKey.startsWith('venice') ? 'venice' : 'openrouter';
   const connected = vault.statuses[chosenEp] === 'unlocked';
   const lastAiId = [...messages].reverse().find((m) => m.role === 'ai')?.id;
 
@@ -333,6 +358,8 @@ export default function App() {
             adult={adult}
             onAdult={setAdult}
             providerPin={providerPin}
+            veniceModelId={veniceModelId}
+            onVeniceModelId={setVeniceModelId}
             onProviderPin={setProviderPin}
             onBack={() => setView('main')}
           />

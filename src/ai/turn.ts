@@ -6,6 +6,7 @@ import { buildSentParams, callModel } from '../../lab/src/providers';
 import type { ModelInfo } from '../../lab/src/types';
 import { applyChanges, type Change, type GameState } from '../game/state';
 import type { Block } from '../types';
+import { player } from '../../lab/src/data/fixture';
 import { buildGameMessages } from './narrator';
 import type { Message } from '../types';
 
@@ -76,6 +77,10 @@ export async function playTurn(input: TurnInput): Promise<TurnResult> {
     return { ok: false, aborted: out.status === 'aborted', error: out.error ?? '返答を受け取れませんでした' };
   }
   const parsed = parseOutput(out.output);
+  // プレイヤーのセリフをAIが書いてしまったときは、その部分を表示しない(プレイヤーの発言は、プレイヤーだけが決める)
+  const removed = parsed.blocks.length;
+  parsed.blocks = parsed.blocks.filter((b) => !(b.type === 'speech' && b.speaker === player.name));
+  const strippedPlayer = removed !== parsed.blocks.length;
   if (!parsed.blocks.length) return { ok: false, aborted: false, error: '返答の本文が空でした' };
 
   // 提案が無い(または読み取れない)ときは、状態を変えない。形式が壊れているときだけ知らせる
@@ -84,7 +89,7 @@ export async function playTurn(input: TurnInput): Promise<TurnResult> {
     ok: true,
     blocks: parsed.blocks,
     changes: parsed.changes ?? [],
-    notice: broken ? '状態の変更案を読み取れなかったため、所持金・所持品は変えていません。' : undefined,
+    notice: [broken ? '状態の変更案を読み取れなかったため、所持金・所持品は変えていません。' : '', strippedPlayer ? 'AIがプレイヤーのセリフを書いたため、その部分を表示から除きました。' : ''].filter(Boolean).join(' ') || undefined,
     servedBy: out.servedBy,
   };
 }

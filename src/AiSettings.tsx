@@ -9,7 +9,8 @@ export const GAME_MODELS = [
   { key: 'deepseek-v4.1-flash-or', label: 'DeepSeek V4.1 Flash(OpenRouter・既定・安い)', endpoint: 'openrouter' },
   { key: 'glm-5.3-or', label: 'GLM 5.3(OpenRouter)', endpoint: 'openrouter' },
   { key: 'venice-uncensored-1-2', label: 'Venice Uncensored 1.2(Venice・成人向けに使える見込み)', endpoint: 'venice' },
-  { key: 'venice-roleplay', label: 'Venice Uncensored Role-Play(Venice)', endpoint: 'venice' },
+  { key: 'venice-roleplay', label: 'Venice Uncensored Role-Play(Venice・日本語は不向き)', endpoint: 'venice' },
+  { key: 'venice-custom', label: 'Venice のモデルを、IDで指定(下の欄)', endpoint: 'venice' },
 ] as const;
 
 type Props = {
@@ -25,6 +26,8 @@ type Props = {
   onAdult: (on: boolean) => void;
   providerPin: string;
   onProviderPin: (v: string) => void;
+  veniceModelId: string;
+  onVeniceModelId: (v: string) => void;
   onBack: () => void;
 };
 
@@ -85,7 +88,7 @@ function KeyBox({ ep, status, onRegister, onForget, show }: { ep: VaultEndpoint;
   );
 }
 
-export function AiSettings({ statuses, onRegister, onUnlock, onLock, onForget, modelKey, onModel, usage, adult, onAdult, providerPin, onProviderPin, onBack }: Props) {
+export function AiSettings({ statuses, onRegister, onUnlock, onLock, onForget, modelKey, onModel, usage, adult, onAdult, providerPin, onProviderPin, veniceModelId, onVeniceModelId, onBack }: Props) {
   const [pass, setPass] = useState('');
   const [msg, setMsg] = useState('');
   const [isError, setIsError] = useState(false);
@@ -121,6 +124,17 @@ export function AiSettings({ statuses, onRegister, onUnlock, onLock, onForget, m
         ))}
       </select>
       {chosen && statuses[chosen.endpoint] !== 'unlocked' && <p className="notice">このモデルは {SERVICE[chosen.endpoint]} のキーが必要です(下で登録・解錠してください)。</p>}
+
+      {modelKey === 'venice-custom' && (
+        <>
+          <label className="field">
+            Venice のモデルID(Venice のモデルのページ・API の欄に書かれている識別名)
+            <input value={veniceModelId} onChange={(e) => onVeniceModelId(e.target.value)} placeholder="例: モデルのページで確認したID" {...secretProps} />
+          </label>
+          {veniceModelId.trim() !== '' && !validProviderSlug(veniceModelId.trim()) && <p className="error">IDの形式が正しくありません(英数字と . _ / - のみ)。</p>}
+          <p className="note">IDが違うと、送信時に「モデルが見つかりません」のようなエラーになります(費用はかかりません)。料金は、Venice のページで確認してください(費用の概算は、この欄では計算しません)。</p>
+        </>
+      )}
 
       <h3>成人向けモード</h3>
       <label className="check">

@@ -351,3 +351,37 @@ describe('Venice(複数のキー・送信先ごとの扱い)', () => {
     expect(seen).toEqual(['https://openrouter.ai/api/v1/chat/completions']);
   });
 });
+
+describe('品質の対策(口調の保持・プレイヤーのセリフを書かせない)', () => {
+  const sysOf = (adult: boolean) => buildGameMessages(initialState(), createInitialSave('a', 1).messages, 'x', undefined, { adult })[0].content;
+
+  it('通常でも、プレイヤーのセリフ・行動を書かないこと、NPCの口調を保つことを指示する', () => {
+    const s = sysOf(false);
+    expect(s).toContain('プレイヤー(カイ)のセリフ・行動・感情・考えを、絶対に書かない');
+    expect(s).toContain('性別・一人称・口調');
+    expect(s).toContain('プレイヤーの番で終える');
+  });
+
+  it('成人向けモードでは、書いたら失敗であること、口調を保つことを、さらに強調する', () => {
+    const s = sysOf(true);
+    expect(s).toContain('書いたら失敗');
+    expect(s).toContain('人物の話し方(性別・一人称・口調)を、場面が変わっても保つ');
+  });
+
+  it('AIがプレイヤー(カイ)のセリフを書いても、表示から除き、その旨を知らせる', async () => {
+    const f = (async () => okBody('リオ「どうぞ」\nカイ「ありがとう」\n彼女は微笑んだ。')) as unknown as typeof fetch;
+    const r = await playTurn({ model, apiKey: KEY, state: initialState(), messages: [], playerText: 'x', fetchImpl: f });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(JSON.stringify(r.blocks)).not.toContain('ありがとう');
+      expect(r.blocks.map((b) => b.type)).toEqual(['speech', 'narration']);
+      expect(r.notice).toContain('プレイヤーのセリフ');
+    }
+  });
+
+  it('NPCのセリフだけなら、そのまま表示し、通知も出さない', async () => {
+    const f = (async () => okBody('リオ「どうぞ」')) as unknown as typeof fetch;
+    const r = await playTurn({ model, apiKey: KEY, state: initialState(), messages: [], playerText: 'x', fetchImpl: f });
+    expect(r.ok && r.notice).toBeFalsy();
+  });
+});
