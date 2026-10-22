@@ -9,7 +9,7 @@ import type { Memory } from './game/memory';
 import type { Message } from './types';
 
 export type SaveStatus = 'saved' | 'saving' | 'error' | 'unavailable';
-type Meta = { id: string; name: string; createdAt: number };
+type Meta = { id: string; name: string; createdAt: number; blank?: boolean };
 export type SaveSummary = { id: string; name: string; updatedAt: number };
 
 const DEBOUNCE_MS = 300;
@@ -26,6 +26,7 @@ export function useGameSave() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [draft, setDraft] = useState('');
   const [setup, setSetup] = useState('');
+  const [blank, setBlank] = useState(false);
   const [memory, setMemory] = useState<Memory | undefined>(undefined);
   const [characters, setCharacters] = useState<Npc[] | undefined>(undefined);
   const [playerInfo, setPlayerInfo] = useState<Player | undefined>(undefined);
@@ -38,7 +39,8 @@ export function useGameSave() {
   const chain = useRef<Promise<void>>(Promise.resolve());
 
   const adopt = useCallback((save: SaveData, draftText: string) => {
-    metaRef.current = { id: save.id, name: save.name, createdAt: save.createdAt };
+    metaRef.current = { id: save.id, name: save.name, createdAt: save.createdAt, ...(save.blank ? { blank: true } : {}) };
+    setBlank(!!save.blank);
     lastSaved.current = { state: save.state, messages: save.messages, draft: draftText, setup: save.setup ?? '', characters: save.characters, playerInfo: save.player, memory: save.memory };
     setSetup(save.setup ?? '');
     setMemory(save.memory);
@@ -130,6 +132,7 @@ export function useGameSave() {
             id: meta.id,
             name: meta.name,
             createdAt: meta.createdAt,
+            ...(meta.blank ? { blank: true } : {}),
             updatedAt: Date.now(),
             state: cur.gameState,
             messages: cur.messages,
@@ -185,14 +188,14 @@ export function useGameSave() {
   );
 
   // 新しいセーブで、はじめから始める。今のセーブは消さずに残す
-  const createNew = useCallback(async () => {
+  const createNew = useCallback(async (blank = false) => {
     const store = storeRef.current;
     if (!store) return { ok: false as const, error: '保存できない状態のため、新しく始められません' };
     await writeNow();
     const names = (await store.listSaves()).map((x) => x.name);
     let name = '新しいセーブ';
     for (let n = 2; names.includes(name); n++) name = `新しいセーブ${n}`;
-    const save = createInitialSave(newId(), Date.now(), name);
+    const save = createInitialSave(newId(), Date.now(), name, blank);
     await store.put(save);
     await store.setActiveId(save.id);
     adopt(save, '');
@@ -225,6 +228,7 @@ export function useGameSave() {
         id: meta.id,
         name: meta.name,
         createdAt: meta.createdAt,
+        ...(meta.blank ? { blank: true } : {}),
         updatedAt: now.getTime(),
         state: cur.gameState,
         messages: cur.messages,
@@ -255,7 +259,7 @@ export function useGameSave() {
 
   return {
     ready, status, notice, setNotice, saves, activeId,
-    gameState, setGameState, messages, setMessages, draft, setDraft, setup, setSetup, characters, setCharacters, playerInfo, setPlayerInfo, memory, setMemory,
+    gameState, setGameState, messages, setMessages, draft, setDraft, setup, setSetup, blank, characters, setCharacters, playerInfo, setPlayerInfo, memory, setMemory,
     switchTo, createNew, deleteSaves, exportBackup, importBackup,
   };
 }

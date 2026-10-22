@@ -57,7 +57,7 @@ function StatusPanel({ state }: { state: StatusSnapshot }) {
 export default function App() {
   const {
     ready, status, notice, setNotice, saves, activeId,
-    gameState, setGameState, messages, setMessages, draft, setDraft, setup, setSetup, characters, setCharacters, playerInfo, setPlayerInfo, memory, setMemory,
+    gameState, setGameState, messages, setMessages, draft, setDraft, setup, setSetup, blank, characters, setCharacters, playerInfo, setPlayerInfo, memory, setMemory,
     switchTo, createNew, deleteSaves, exportBackup, importBackup,
   } = useGameSave();
   const vault = useVault();
@@ -201,7 +201,7 @@ export default function App() {
     abortRef.current = ac;
     setBusy(true);
     setAtBottom(true);
-    const result = await playTurn({ model, apiKey: key, state: live.current.gameState, messages: live.current.messages, playerText: text, signal: ac.signal, adult, providerPin, setup, length: replyLength, characters, player: playerInfo, memory });
+    const result = await playTurn({ model, apiKey: key, state: live.current.gameState, messages: live.current.messages, playerText: text, signal: ac.signal, adult, providerPin, setup, blank, length: replyLength, characters, player: playerInfo, memory });
     abortRef.current = null;
     setBusy(false);
     if (!result.ok) {

@@ -707,3 +707,23 @@ describe('長期記憶', () => {
     expect(parsed.ok && parsed.save.memory?.upTo).toBe(4);
   });
 });
+
+describe('白紙で始めるセーブ', () => {
+  it('港町の世界を送らず、設定メモに従わせる', async () => {
+    const { buildGameMessages } = await import('./narrator');
+    const { createState } = await import('../game/state');
+    const st = createState({ money: 1, items: [], place: 'x', datetime: 'y' });
+    const blank = buildGameMessages(st, [], 'こんにちは', 30, { blank: true, setup: '山奥の温泉宿' })[0].content;
+    expect(blank).not.toContain('ルセナ');
+    expect(blank).toContain('山奥の温泉宿');
+    const normal = buildGameMessages(st, [], 'こんにちは', 30, {})[0].content;
+    expect(normal).toContain('ルセナ');
+  });
+  it('白紙のセーブは、検証を通り、港町の導入を含まない', async () => {
+    const { createInitialSave } = await import('../game/initial');
+    const { validateSave } = await import('../game/save');
+    const s = createInitialSave('id1', 1, 'n', true);
+    expect(validateSave(s).ok).toBe(true);
+    expect(JSON.stringify(s)).not.toContain('ルセナ');
+  });
+});

@@ -7,7 +7,7 @@ type Props = {
   onOpen: (id: string) => Promise<{ ok: boolean; error?: string }>;
   onExport: () => { filename: string; text: string };
   onDelete: (ids: string[]) => Promise<{ ok: boolean; error?: string; count?: number }>;
-  onNew: () => Promise<{ ok: boolean; error?: string; name?: string }>;
+  onNew: (blank?: boolean) => Promise<{ ok: boolean; error?: string; name?: string }>;
   onImport: (text: string) => Promise<{ ok: boolean; error?: string; name?: string }>;
   onBack: () => void;
 };
@@ -85,15 +85,27 @@ export function SaveManager({ saves, activeId, onOpen, onDelete, onNew, onExport
       <div className="row">
         <button
           onClick={async () => {
-            const r = await onNew();
+            const r = await onNew(true);
+            if (r.ok) show(`「${r.name}」を白紙で始めました。「人物と主人公」「設定メモ」を入力してください。`);
+            else show(r.error ?? '始められませんでした', true);
+          }}
+        >
+          白紙で、新しくはじめる
+        </button>
+      </div>
+      <p className="note">港町の世界・人物・導入を使わず、自分の設定だけで遊ぶセーブです。今のセーブは消さず、別のセーブとして作ります。</p>
+      <div className="row">
+        <button
+          className="link-btn"
+          onClick={async () => {
+            const r = await onNew(false);
             if (r.ok) show(`「${r.name}」をはじめから始めました。これまでのセーブは残っています。`);
             else show(r.error ?? '始められませんでした', true);
           }}
         >
-          新しくはじめる
+          お試しの港町で、はじめる
         </button>
       </div>
-      <p className="note">今のセーブは消さず、別のセーブとして、はじめから始めます。</p>
 
       {saves.length > 1 && (
         <div className="row">

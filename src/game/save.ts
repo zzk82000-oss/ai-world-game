@@ -18,6 +18,7 @@ export type SaveData = {
   characters?: Npc[]; // このセーブの登場人物(なければ既定)
   player?: Player; // このセーブの主人公(なければ既定)
   memory?: Memory; // 長期記憶(なければ、まだ要約していない)
+  blank?: boolean; // 白紙で始めたセーブ(既定の港町の世界・導入を使わない)
   setup?: string; // プレイヤーが決めた設定メモ(関係・状況など)。AIに「最優先で守る設定」として渡す
 };
 
@@ -112,6 +113,7 @@ export function validateSave(x: unknown): Validated {
   }
   const stateError = checkStatus(s.state, true);
   if (stateError) return { ok: false, error: stateError };
+  if (s.blank !== undefined && typeof s.blank !== 'boolean') return { ok: false, error: '始め方の情報が正しくありません' };
   if (s.setup !== undefined && !(isStr(s.setup) && s.setup.length <= SETUP_MAX)) return { ok: false, error: '設定メモが正しくありません' };
   if (s.memory !== undefined) {
     const e = validateMemory(s.memory);
