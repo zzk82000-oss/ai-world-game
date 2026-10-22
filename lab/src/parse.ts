@@ -4,7 +4,7 @@ import type { ParsedOutput } from './types';
 
 const CHANGE_TYPES = new Set([
   'pay', 'receive', 'purchase', 'sell', 'addItem', 'consumeItem', 'discardItem',
-  'orderFacility', 'setFacilityStatus', 'setPlace', 'setMoney', 'setItemQuantity',
+  'orderFacility', 'setFacilityStatus', 'setPlace', 'setDatetime', 'setMoney', 'setItemQuantity',
 ]);
 
 export function splitChanges(text: string): { body: string; json: string | null } {

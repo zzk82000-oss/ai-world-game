@@ -748,3 +748,14 @@ describe('セリフの句点', () => {
     expect(withPeriod('いただく。')).toBe('いただく。');
   });
 });
+
+describe('日時の変更', () => {
+  it('setDatetime で日時が変わり、空・長すぎる値は拒否する', async () => {
+    const { applyChange, createState } = await import('../game/state');
+    const st = createState({ money: 1, items: [], place: 'a', datetime: 'x' });
+    const ok = applyChange(st, { type: 'setDatetime', datetime: ' 5/16 15:30 ' });
+    expect(ok.ok && ok.state.datetime).toBe('5/16 15:30');
+    expect(applyChange(st, { type: 'setDatetime', datetime: ' ' }).ok).toBe(false);
+    expect(applyChange(st, { type: 'setDatetime', datetime: 'あ'.repeat(41) }).ok).toBe(false);
+  });
+});

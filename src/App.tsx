@@ -352,7 +352,7 @@ export default function App() {
                   )}
                 </div>
               )}
-              <StatusPanel state={m.state} />
+              <StatusPanel state={m.id === lastAiId ? statusOf(gameState) : m.state} />
             </div>
           ),
         )}

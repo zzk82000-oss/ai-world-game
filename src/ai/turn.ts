@@ -56,6 +56,7 @@ export function describeChange(c: Change): string {
     case 'discardItem': return `「${c.name}」を手放す`;
     case 'orderFacility': return `設備「${c.name}」を発注`;
     case 'setFacilityStatus': return `設備「${c.name}」を${{ ordered: '発注中', delivered: '納品済み', installed: '設置済み' }[c.status]}に`;
+    case 'setDatetime': return `日時を「${c.datetime}」に変更`;
     case 'setPlace': return `場所を「${c.place}」に移動`;
     case 'setMoney': return `所持金を${c.amount}に`;
     case 'setItemQuantity': return `「${c.name}」の数を${c.quantity ?? '管理なし'}に`;

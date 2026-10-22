@@ -11,6 +11,8 @@ type Props = {
 export function DataEditor({ state, onChange, onBack }: Props) {
   const [error, setError] = useState('');
   const [money, setMoney] = useState(String(state.money));
+  const [place, setPlace] = useState(state.place);
+  const [datetime, setDatetime] = useState(state.datetime);
   const [newName, setNewName] = useState('');
   const [newQty, setNewQty] = useState('');
 
@@ -33,6 +35,21 @@ export function DataEditor({ state, onChange, onBack }: Props) {
         ← メニューに戻る
       </button>
       <h2>ゲームデータの編集</h2>
+
+      <label className="field">
+        日時
+        <div className="row">
+          <input value={datetime} maxLength={40} onChange={(e) => setDatetime(e.target.value)} />
+          <button onClick={() => apply({ type: 'setDatetime', datetime })}>変更</button>
+        </div>
+      </label>
+      <label className="field">
+        場所
+        <div className="row">
+          <input value={place} onChange={(e) => setPlace(e.target.value)} />
+          <button onClick={() => apply({ type: 'setPlace', place })}>変更</button>
+        </div>
+      </label>
 
       <label className="field">
         所持金({state.currency})

@@ -43,6 +43,7 @@ export type Change =
   | { type: 'orderFacility'; name: string }
   | { type: 'setFacilityStatus'; name: string; status: FacilityStatus }
   | { type: 'setPlace'; place: string }
+  | { type: 'setDatetime'; datetime: string }
   // 手動編集(プレイヤーによる修正)
   | { type: 'setMoney'; amount: number }
   | { type: 'setItemQuantity'; name: string; quantity?: number };
@@ -175,6 +176,12 @@ export function applyChange(state: GameState, change: Change): Result {
       const place = change.place.trim();
       if (!place) return fail('場所が空です');
       return { ok: true, state: { ...state, place } };
+    }
+    case 'setDatetime': {
+      const datetime = String(change.datetime ?? '').trim();
+      if (!datetime) return fail('日時が空です');
+      if (datetime.length > 40) return fail('日時が長すぎます(40文字まで)');
+      return { ok: true, state: { ...state, datetime } };
     }
     case 'setMoney':
       if (!Number.isSafeInteger(change.amount) || change.amount < 0) return fail('所持金は0以上の整数にしてください');
