@@ -34,6 +34,16 @@ export const ENDPOINTS: Record<string, Endpoint> = {
     termsUrl: 'https://venice.ai/legal/tos',
     note: 'APIの残高はPro(月額)とは別。前払いは返金不可との情報。',
   },
+  novelai: {
+    id: 'novelai',
+    provider: 'NovelAI(Anlatan)',
+    url: 'https://text.novelai.net/oa/v1/chat/completions',
+    origin: 'https://text.novelai.net',
+    auth: 'bearer',
+    browserDirect: '未確認',
+    termsUrl: 'https://novelai.net/terms',
+    note: 'OpenAI互換(公式仕様書: text.novelai.net/docs)。認証は永続APIトークン(pst-…)で、Bearerを付けるかは仕様書に明記なし。トークンはストーリーの暗号化キーにかかわるため、特に慎重に扱う。有効なサブスクが必要(402)とされる。まだゲームには接続していない(接続確認だけ)。',
+  },
 };
 
 // 送信先が許可リストの形どおりか(HTTPSで、決められたオリジンのURLか)

@@ -144,7 +144,7 @@ export const models: ModelInfo[] = [
     contract: '月額サブスク(Tablet $10 / Scroll $15 / Opus $25)。Xialong は Opus 専用。Webアプリでの「無制限」が外部アプリからのAPI利用にも当てはまるかは未確認(当てはまるとは考えない)。トークン単位のAPI料金は見つからず。',
     adultTerms: '文章にフィルターはなく18歳以上なら成人向けも可とされる(二次情報のみ。公式の条文は未確認)。',
     dataPolicy: '物語は暗号化して保存し学習に使わないとされる(二次情報のみ)。',
-    notes: 'NovelAIは「制限を回避するための自動化」を禁止と告知している。外部アプリからの利用条件が確認できるまで、このテスト環境からは接続しない(接続部分は作っていない)。',
+    notes: '【2026-10-22】外部向けのAPI仕様書は text.novelai.net/docs(OpenAI互換: POST /oa/v1/chat/completions と /oa/v1/completions、GET /oa/v1/models)。GLM 4.6 のモデルIDは glm-4-6(スクリプト用ドキュメントの例)。認証は永続APIトークン(pst-…)。仕様書は「APIユーザーは利用規約を遵守」「トークンは平文保存を強く非推奨」と明記。ブラウザからの直接接続(CORS)は、設定タブの接続確認で確認する。無料トライアル(Paper)はテキスト50回(メール認証済み)。API利用に有効なサブスクが必要かは未確認。料金: Tablet $10(GLM 4.6・無制限・記憶約8,192トークン)/ Scroll $15 / Opus $25(Xialong・Llama 3 Erato)。規約5.2(米国で契約できる能力)の日本からの利用は未確認。公開掲示板(Explore)はNSFW禁止だが、非公開の内容の制限は規約に見当たらない。',
     sources: ['https://blog.novelai.net/welcome-novelais-newest-writing-model-xialong-ecde7d21d111', 'https://docs.novelai.net/en/text/models/', 'https://api.novelai.net/docs/'],
     checkedAt: CHECKED,
   },

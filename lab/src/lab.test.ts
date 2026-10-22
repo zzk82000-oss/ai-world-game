@@ -696,3 +696,33 @@ describe('提供元の指定(OpenRouter・任意)', () => {
     expect(r.status).toBe('error');
   });
 });
+
+describe('NovelAI の送信先(接続確認のみ・まだゲームには接続していない)', () => {
+  it('許可リストに入っていて、HTTPS・決められたオリジンの形になっている', () => {
+    expect(validateEndpoint(ENDPOINTS.novelai)).toBeNull();
+    expect(ENDPOINTS.novelai.url).toBe('https://text.novelai.net/oa/v1/chat/completions');
+  });
+
+  it('ブラウザから直接つながるか未確認のため、接続確認に成功するまで、実通信は無効', () => {
+    expect(liveBlockReason(ENDPOINTS.novelai, new Set())).toContain('確認できていない');
+    expect(liveBlockReason(ENDPOINTS.novelai, new Set(['novelai']))).toBeNull();
+  });
+
+  it('接続確認は、本物のキーも会話も送らない(中身のない要求と偽の認証ヘッダーだけ)', async () => {
+    let body = '';
+    let auth = '';
+    const f = (async (_u: unknown, init?: RequestInit) => {
+      body = String(init?.body);
+      auth = String((init?.headers as Record<string, string>).Authorization);
+      return new Response('{}', { status: 401 });
+    }) as unknown as typeof fetch;
+    const r = await checkBrowserAccess(ENDPOINTS.novelai, f);
+    expect(r.ok).toBe(true);
+    expect(body).toBe('{}');
+    expect(auth).toContain('not-a-real-key');
+  });
+
+  it('NovelAI のモデル情報は、まだ接続しない(adapter none)ので、実行できない', () => {
+    expect(modelByKey('novelai-glm')?.adapter).toBe('none');
+  });
+});
