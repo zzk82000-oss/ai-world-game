@@ -2,6 +2,7 @@
 import type { Message } from '../types';
 import type { Npc } from '../../lab/src/types';
 import { validateCharacters, validatePlayer, type Player } from './cast';
+import { validateMemory, type Memory } from './memory';
 import type { GameState } from './state';
 
 export const SAVE_FORMAT = 1;
@@ -16,6 +17,7 @@ export type SaveData = {
   messages: Message[];
   characters?: Npc[]; // このセーブの登場人物(なければ既定)
   player?: Player; // このセーブの主人公(なければ既定)
+  memory?: Memory; // 長期記憶(なければ、まだ要約していない)
   setup?: string; // プレイヤーが決めた設定メモ(関係・状況など)。AIに「最優先で守る設定」として渡す
 };
 
@@ -111,6 +113,10 @@ export function validateSave(x: unknown): Validated {
   const stateError = checkStatus(s.state, true);
   if (stateError) return { ok: false, error: stateError };
   if (s.setup !== undefined && !(isStr(s.setup) && s.setup.length <= SETUP_MAX)) return { ok: false, error: '設定メモが正しくありません' };
+  if (s.memory !== undefined) {
+    const e = validateMemory(s.memory);
+    if (e) return { ok: false, error: e };
+  }
   if (s.characters !== undefined) {
     const e = validateCharacters(s.characters);
     if (e) return { ok: false, error: e };

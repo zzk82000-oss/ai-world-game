@@ -12,6 +12,8 @@ import type { ModelInfo } from '../lab/src/types';
 import { RichText } from './RichText';
 import { SaveManager } from './SaveManager';
 import { CharacterEditor } from './CharacterEditor';
+import { MemoryEditor } from './MemoryEditor';
+import { pendingMessages, summarize } from './ai/summarize';
 import { SetupEditor } from './SetupEditor';
 import { useGameSave } from './useGameSave';
 import './App.css';
@@ -55,7 +57,7 @@ function StatusPanel({ state }: { state: StatusSnapshot }) {
 export default function App() {
   const {
     ready, status, notice, setNotice, saves, activeId,
-    gameState, setGameState, messages, setMessages, draft, setDraft, setup, setSetup, characters, setCharacters, playerInfo, setPlayerInfo,
+    gameState, setGameState, messages, setMessages, draft, setDraft, setup, setSetup, characters, setCharacters, playerInfo, setPlayerInfo, memory, setMemory,
     switchTo, createNew, deleteSaves, exportBackup, importBackup,
   } = useGameSave();
   const vault = useVault();
@@ -141,7 +143,7 @@ export default function App() {
   // 非同期の処理の後でも、最新の状態・会話を使うための参照
   const live = useRef({ gameState, messages });
   live.current = { gameState, messages };
-  const [view, setView] = useState<'main' | 'editor' | 'saves' | 'ai' | 'setup' | 'cast'>('main');
+  const [view, setView] = useState<'main' | 'editor' | 'saves' | 'ai' | 'setup' | 'cast' | 'memory'>('main');
   const [menuOpen, setMenuOpen] = useState(false);
   const [atBottom, setAtBottom] = useState(true);
   const logRef = useRef<HTMLDivElement>(null);
@@ -199,7 +201,7 @@ export default function App() {
     abortRef.current = ac;
     setBusy(true);
     setAtBottom(true);
-    const result = await playTurn({ model, apiKey: key, state: live.current.gameState, messages: live.current.messages, playerText: text, signal: ac.signal, adult, providerPin, setup, length: replyLength, characters, player: playerInfo });
+    const result = await playTurn({ model, apiKey: key, state: live.current.gameState, messages: live.current.messages, playerText: text, signal: ac.signal, adult, providerPin, setup, length: replyLength, characters, player: playerInfo, memory });
     abortRef.current = null;
     setBusy(false);
     if (!result.ok) {
@@ -226,6 +228,28 @@ export default function App() {
       ];
     });
     setDraft('');
+  };
+
+  // 記憶の更新(要約)。押したときだけ、1回送る(自動では実行しない)
+  const [memBusy, setMemBusy] = useState(false);
+  const updateMemory = async (): Promise<{ ok: boolean; message: string }> => {
+    if (memBusy) return { ok: false, message: '更新中です' };
+    const model = resolveModel();
+    const ep = modelKey.startsWith('venice') ? 'venice' : 'openrouter';
+    const key = vault.getKey(ep);
+    if (!model || !key) return { ok: false, message: 'つながっていません(AIの設定で、モデルとキーを確認してください)' };
+    if (pendingMessages(live.current.messages, memory).length < 6) {
+      return { ok: false, message: '要約できる新しい会話が、まだ少ないです(直近30ターンは、原文のままAIに渡しているため、対象外です)' };
+    }
+    const counted = tryCount(kvRef.current, Date.now());
+    setUsage({ count: counted.count, limit: counted.limit });
+    if (!counted.ok) return { ok: false, message: `今日のAI呼び出しの上限(${counted.limit}回)に達しました` };
+    setMemBusy(true);
+    const r = await summarize({ model, apiKey: key, messages: live.current.messages, memory, characters, player: playerInfo, adult, providerPin });
+    setMemBusy(false);
+    if (!r.ok) return { ok: false, message: `${r.error}(自動では再試行しません)` };
+    setMemory(r.memory);
+    return { ok: true, message: `記憶を更新しました(追加 ${r.added}件・果たされた約束 ${r.resolved}件)。内容を確認して、直してください。` };
   };
 
   const undo = (id: number) => {
@@ -359,6 +383,17 @@ export default function App() {
         </button>
         {view === 'editor' ? (
           <DataEditor state={gameState} onChange={setGameState} onBack={() => setView('main')} />
+        ) : view === 'memory' ? (
+          <MemoryEditor
+            memory={memory}
+            pending={pendingMessages(messages, memory).length}
+            connected={connected}
+            busy={memBusy}
+            usage={usage}
+            onChange={setMemory}
+            onUpdate={updateMemory}
+            onBack={() => setView('main')}
+          />
         ) : view === 'cast' ? (
           <CharacterEditor characters={characters} player={playerInfo} onCharacters={setCharacters} onPlayer={setPlayerInfo} onBack={() => setView('main')} />
         ) : view === 'setup' ? (
@@ -404,6 +439,11 @@ export default function App() {
               <li>
                 <button className="menu-item" onClick={() => setView('editor')}>
                   ゲームデータの編集
+                </button>
+              </li>
+              <li>
+                <button className="menu-item" onClick={() => setView('memory')}>
+                  記憶
                 </button>
               </li>
               <li>

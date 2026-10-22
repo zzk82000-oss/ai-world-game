@@ -1,5 +1,6 @@
 // ゲーム本体用の、モデルに渡す内容の組み立て。比較環境と同じ指示文(v2)を使う。
 import { world } from '../../lab/src/data/fixture';
+import { memoryText, type Memory } from '../game/memory';
 import { ADULT_AGE, defaultCharacters, defaultPlayer, isAdultTarget, type Player } from '../game/cast';
 import { npcText, rulesFor, stateText } from '../../lab/src/prompt';
 import type { ChatMessage, Npc } from '../../lab/src/types';
@@ -36,7 +37,7 @@ const COMPACT_NOTES = `- 返答の構成は、次の3つだけにして、そこ
 export const blocksToText = (blocks: Block[]) => blocks.map((b) => (b.type === 'speech' ? `${b.speaker}「${b.text}」` : b.text)).join('\n');
 
 // NPCの秘密は、AIには渡さない(1つのAIが全員を演じるため、他人の秘密を漏らさないようにする)
-export function buildGameMessages(state: GameState, history: Message[], playerText: string, maxTurns = MAX_HISTORY_TURNS, opts: { adult?: boolean; setup?: string; length?: ReplyLength; characters?: Npc[]; player?: Player } = {}): ChatMessage[] {
+export function buildGameMessages(state: GameState, history: Message[], playerText: string, maxTurns = MAX_HISTORY_TURNS, opts: { adult?: boolean; setup?: string; length?: ReplyLength; characters?: Npc[]; player?: Player; memory?: Memory } = {}): ChatMessage[] {
   const player = opts.player ?? defaultPlayer();
   const cast = opts.characters ?? defaultCharacters();
   // 先頭のAIの返答(導入)は、プレイヤーの発言に対する返答ではないので、システムの説明に入れる
@@ -54,6 +55,7 @@ export function buildGameMessages(state: GameState, history: Message[], playerTe
     `# プレイヤー\n- ${player.name}: ${player.profile}`,
     `# 町の人々\n${cast.map((n) => npcText(n, false) + (opts.adult && !isAdultTarget(n.age) ? `\n- 【${ADULT_MIN_AGE}歳未満、または年齢が不明: 性的な場面には、どんな場合も関わらせない】` : '')).join('\n\n')}`,
     opts.setup?.trim() ? `# プレイヤーが決めた設定(世界や人物の基本設定より優先して、守る)\n${opts.setup.trim()}` : '',
+    memoryText(opts.memory),
     opening ? `# 物語の導入(すでに表示済み)\n${blocksToText(opening.blocks)}` : '',
     `# 現在の状態(アプリが管理する正式な値)\n${stateText(state)}`,
   ]

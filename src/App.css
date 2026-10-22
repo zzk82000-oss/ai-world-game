@@ -260,3 +260,6 @@ body {
 .char-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 6px 0; }
 .char-row small { display: block; color: var(--muted); }
 .editor textarea, .editor input:not([type=checkbox]) { width: 100%; box-sizing: border-box; font: inherit; }
+.memory-list { list-style: none; padding: 0; margin: 0; }
+.memory-list li { border: 1px solid var(--line, #8883); border-radius: 8px; padding: 8px; margin: 8px 0; }
+.memory-add { display: grid; gap: 6px; }

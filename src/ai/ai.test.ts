@@ -7,6 +7,8 @@ import { parseBackup, serializeBackup, SETUP_MAX, validateSave } from '../game/s
 import { SaveStore } from '../game/storage';
 import type { Message } from '../types';
 import { blocksToText, buildGameMessages, MAX_HISTORY_TURNS } from './narrator';
+import { MEMORY_ITEM_MAX, MEMORY_TOTAL_MAX, mergeMemory, trimMemory } from '../game/memory';
+import { buildSummaryMessages, pendingMessages, summarize } from './summarize';
 import { describeChange, playTurn, settleChanges } from './turn';
 import { DAILY_LIMIT, jstDate, readUsage, tryCount, type KV } from './usage';
 import { KeyVault, VAULT_DB, validateApiKey } from './vault';
@@ -579,5 +581,129 @@ describe('人物と主人公の編集(セーブごと)', () => {
     expect(r.kind === 'ok' && r.save.characters?.[0].name).toBe('アキラ');
     const parsed = parseBackup(serializeBackup(withCast, 1));
     expect(parsed.ok && parsed.save.player?.name).toBe('タクミ');
+  });
+});
+
+describe('長期記憶', () => {
+  const mk = (n: number): Message[] => {
+    const st = createInitialSave('a', 1).messages[0];
+    const ms: Message[] = [st];
+    for (let i = 0; i < n; i++) {
+      ms.push({ id: ms.length, role: 'player', text: `発言${i}` });
+      ms.push({ id: ms.length, role: 'ai', blocks: [{ type: 'speech', speaker: 'リオ', text: `返答${i}` }], state: (st as Extract<Message, { role: 'ai' }>).state });
+    }
+    return ms;
+  };
+  const sumBody = (obj: unknown) => `前置き\n${JSON.stringify(obj)}`;
+  const fx = (content: string) => (async () => okBody(content)) as unknown as typeof fetch;
+
+  it('要約の対象は、直近の原文で渡す分より前の、まだ要約していない会話だけ(導入は含めない)', () => {
+    const ms = mk(40); // 80件+導入
+    const p = pendingMessages(ms, undefined, 30);
+    expect(p.length).toBe(80 - 60);
+    expect(p[0].id).toBe(1);
+    expect(pendingMessages(ms, { items: [], upTo: p[9].id, version: 1 }, 30).length).toBe(10);
+    expect(pendingMessages(mk(10), undefined, 30)).toEqual([]);
+  });
+
+  it('会話が少ないときは、送信せずに知らせる', async () => {
+    const f = vi.fn();
+    const r = await summarize({ model, apiKey: KEY, messages: mk(31), memory: undefined, fetchImpl: f as unknown as typeof fetch });
+    expect(r.ok).toBe(false);
+    expect(f).not.toHaveBeenCalled();
+  });
+
+  it('要約を取り込み、追加した項目と、要約済みの位置を記録する。既存の項目は、書き換えない', async () => {
+    const existing = { items: [{ id: 'p1', kind: 'promise' as const, text: '水曜に朝市へ行く約束をした', knownBy: [], done: false, source: 'player' as const }], upTo: 0, version: 1 as const };
+    const r = await summarize({
+      model, apiKey: KEY, messages: mk(40), memory: existing, keepTurns: 30,
+      fetchImpl: fx(sumBody({ add: [{ kind: 'event', text: '嵐の夜に、カイは薬屋に残った', knownBy: ['リオ', 'カイ'] }, { kind: 'promise', text: '三日後に工房で会う', knownBy: [] }], resolve: ['p1', 'unknown-id'] })),
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.memory.items[0]).toMatchObject({ id: 'p1', text: '水曜に朝市へ行く約束をした', done: true, source: 'player' });
+      expect(r.memory.items.map((i) => i.text)).toContain('嵐の夜に、カイは薬屋に残った');
+      expect(r.memory.items.find((i) => i.kind === 'promise' && i.id !== 'p1')?.done).toBe(false);
+      expect(r.memory.upTo).toBe(20);
+      expect(r.added).toBe(2);
+      expect(r.resolved).toBe(1); // 知らないidは、無視される
+    }
+  });
+
+  it('形式が崩れた要約は、記憶を変えない。通信の失敗も、同じ', async () => {
+    for (const body of ['要約できません', '{"add": "x"}', '{壊れた']) {
+      const r = await summarize({ model, apiKey: KEY, messages: mk(40), memory: undefined, fetchImpl: fx(body) });
+      expect(r.ok).toBe(false);
+    }
+    const r = await summarize({ model, apiKey: KEY, messages: mk(40), memory: undefined, fetchImpl: (async () => new Response('x', { status: 500 })) as unknown as typeof fetch });
+    expect(r.ok).toBe(false);
+  });
+
+  it('同じ内容の項目は、重ねて追加しない。長すぎる項目は、切り詰める', () => {
+    const base = { items: [{ id: 'a', kind: 'event' as const, text: '同じ出来事', knownBy: [], source: 'ai' as const }], upTo: 1, version: 1 as const };
+    let n = 0;
+    const m = mergeMemory(base, { add: [{ kind: 'event', text: '同じ出来事', knownBy: [] }, { kind: 'event', text: 'あ'.repeat(300), knownBy: [] }], resolve: [] }, 5, () => `n${n++}`);
+    expect(m.items.length).toBe(2);
+    expect(m.items[1].text.length).toBe(MEMORY_ITEM_MAX);
+    expect(m.upTo).toBe(5);
+  });
+
+  it('上限を超えたら、古い「出来事」から捨てる。未履行の約束・関係の転機・自分で書いた項目は残す', () => {
+    const big = (id: string, kind: 'event' | 'promise' | 'relationship', source: 'ai' | 'player', done = false) => ({ id, kind, text: 'あ'.repeat(100), knownBy: [], source, ...(kind === 'promise' ? { done } : {}) });
+    const items = [big('r', 'relationship', 'ai'), big('p', 'promise', 'ai', false), big('mine', 'event', 'player'), ...Array.from({ length: 30 }, (_, i) => big(`e${i}`, 'event', 'ai'))];
+    const t = trimMemory(items);
+    expect(t.reduce((a, i) => a + i.text.length, 0)).toBeLessThanOrEqual(MEMORY_TOTAL_MAX);
+    for (const id of ['r', 'p', 'mine']) expect(t.some((i) => i.id === id)).toBe(true);
+    expect(t.some((i) => i.id === 'e0')).toBe(false);
+    expect(t.some((i) => i.id === 'e29')).toBe(true);
+  });
+
+  it('要約の指示は、事実だけ・評価や推測を書かない・性的な場面は具体的に書かない、と定めている。プロンプトに会話と既存の記憶が入る', () => {
+    const m = buildSummaryMessages(mk(3).slice(1), { items: [{ id: 'p1', kind: 'promise', text: '約束A', knownBy: [], done: false, source: 'ai' }], upTo: 0, version: 1 });
+    const sys = m[0].content;
+    expect(sys).toContain('推測や評価は、書かない');
+    expect(sys).toContain('具体的に書かず');
+    expect(sys).toContain('id=p1');
+    expect(m[1].content).toContain('発言0');
+  });
+
+  it('記憶は、AIへの指示に入る(知っている人・果たし済みの区別つき)。空なら入らない', () => {
+    const mem = { items: [
+      { id: '1', kind: 'event' as const, text: '嵐の夜に残った', knownBy: ['リオ', 'カイ'], source: 'ai' as const },
+      { id: '2', kind: 'promise' as const, text: '朝市へ行く', knownBy: [], done: true, source: 'ai' as const },
+      { id: '3', kind: 'promise' as const, text: '工房で会う', knownBy: [], done: false, source: 'ai' as const },
+    ], upTo: 9, version: 1 as const };
+    const sys = buildGameMessages(initialState(), createInitialSave('a', 1).messages, 'x', undefined, { memory: mem })[0].content;
+    expect(sys).toContain('長期記憶');
+    expect(sys).toContain('嵐の夜に残った(知っている人: リオ、カイ)');
+    expect(sys).toContain('朝市へ行く(果たし済み)');
+    expect(sys).toContain('工房で会う(まだ果たされていない)');
+    expect(sys).toContain('その人物以外は知らないものとして');
+    expect(buildGameMessages(initialState(), createInitialSave('a', 1).messages, 'x')[0].content).not.toContain('長期記憶');
+  });
+
+  it('成人向けの要約は、Venice か提供元を指定した OpenRouter のときだけ送る', async () => {
+    const f = vi.fn(fx(sumBody({ add: [] })));
+    const base = { apiKey: KEY, messages: mk(40), memory: undefined, adult: true, fetchImpl: f as unknown as typeof fetch };
+    expect((await summarize({ ...base, model })).ok).toBe(false);
+    expect(f).not.toHaveBeenCalled();
+    expect((await summarize({ ...base, model, providerPin: 'example' })).ok).toBe(true);
+    expect((await summarize({ ...base, model: modelByKey('venice-uncensored-1-2')! })).ok).toBe(true);
+  });
+
+  it('セーブ・バックアップに入る。記憶のない古いセーブも読める。不正な記憶を含むセーブは拒否する', async () => {
+    const base = createInitialSave('a', 1);
+    const memory = { items: [{ id: 'x', kind: 'event' as const, text: '出来事', knownBy: ['リオ'], source: 'ai' as const }], upTo: 4, version: 1 as const };
+    expect(validateSave({ ...base, memory }).ok).toBe(true);
+    expect(validateSave(base).ok).toBe(true);
+    expect(validateSave({ ...base, memory: { ...memory, items: [{ ...memory.items[0], kind: 'bad' }] } }).ok).toBe(false);
+    expect(validateSave({ ...base, memory: { ...memory, items: [{ ...memory.items[0], text: '' }] } }).ok).toBe(false);
+    expect(validateSave({ ...base, memory: { ...memory, upTo: -1 } }).ok).toBe(false);
+    const store = await SaveStore.open(new IDBFactory());
+    await store.put({ ...base, memory });
+    const r = await store.load('a');
+    expect(r.kind === 'ok' && r.save.memory?.items[0].text).toBe('出来事');
+    const parsed = parseBackup(serializeBackup({ ...base, memory }, 1));
+    expect(parsed.ok && parsed.save.memory?.upTo).toBe(4);
   });
 });
