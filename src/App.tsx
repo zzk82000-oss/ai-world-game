@@ -87,6 +87,19 @@ export default function App() {
       return false;
     }
   });
+  // 「**」を入力欄に入れ、カーソルを2つの * の間に置く。文字を選んでいるときは、その前後を * で囲む
+  const insertStars = () => {
+    const el = inputRef.current;
+    const start = el?.selectionStart ?? draft.length;
+    const end = el?.selectionEnd ?? draft.length;
+    const picked = draft.slice(start, end);
+    setDraft(draft.slice(0, start) + '*' + picked + '*' + draft.slice(end));
+    const pos = picked ? end + 2 : start + 1;
+    requestAnimationFrame(() => {
+      el?.focus();
+      el?.setSelectionRange(pos, pos);
+    });
+  };
   const setAdult = (on: boolean) => {
     setAdultState(on);
     store('ai-game-adult', on ? '1' : '0');
@@ -358,6 +371,9 @@ export default function App() {
       )}
       {busy && <p className="thinking">考え中…(長いときは「停止」を押せます)</p>}
       <div className="composer">
+        <button className="star-btn" aria-label="行動の記号を入れる" onClick={insertStars} disabled={busy}>
+          **
+        </button>
         <textarea
           ref={inputRef}
           rows={2}

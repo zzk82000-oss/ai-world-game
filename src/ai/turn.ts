@@ -87,6 +87,7 @@ export async function playTurn(input: TurnInput): Promise<TurnResult> {
   const parsed = parseOutput(out.output);
   // プレイヤーのセリフをAIが書いてしまったときは、その部分を表示しない(プレイヤーの発言は、プレイヤーだけが決める)
   const removed = parsed.blocks.length;
+  for (const b of parsed.blocks) if (b.type === 'speech') b.text = withPeriod(b.text);
   parsed.blocks = parsed.blocks.filter((b) => !(b.type === 'speech' && b.speaker === (input.player ?? defaultPlayer()).name));
   const strippedPlayer = removed !== parsed.blocks.length;
   if (!parsed.blocks.length) return { ok: false, aborted: false, error: '返答の本文が空でした' };
@@ -101,3 +102,9 @@ export async function playTurn(input: TurnInput): Promise<TurnResult> {
     servedBy: out.servedBy,
   };
 }
+
+// セリフの終わりに句点がないときは、「。」を付ける(! ? … などの記号で終わるセリフは、そのまま)
+export const withPeriod = (t: string): string => {
+  const s = t.trimEnd();
+  return s && !/[。.!?！？…‥〜～♪♡」』）)]$/.test(s) ? `${s}。` : s;
+};

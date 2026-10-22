@@ -167,6 +167,17 @@ body {
   font-weight: bold;
 }
 .send:disabled { opacity: 0.4; }
+.star-btn {
+  flex: none;
+  height: 44px;
+  min-width: 44px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+  color: var(--fg);
+  font-size: 1.1rem;
+  font-weight: bold;
+}
 
 .backdrop { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.4); }
 .menu {

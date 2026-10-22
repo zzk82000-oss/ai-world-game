@@ -176,7 +176,7 @@ describe('1ターンの処理', () => {
     const r = await run(f as unknown as typeof fetch);
     expect(r).toMatchObject({ ok: true, servedBy: 'TestProv' });
     if (r.ok) {
-      expect(r.blocks[0]).toEqual({ type: 'speech', speaker: 'リオ', text: 'いらっしゃい' });
+      expect(r.blocks[0]).toEqual({ type: 'speech', speaker: 'リオ', text: 'いらっしゃい。' });
       expect(r.changes).toEqual([{ type: 'pay', amount: 100, reason: 'お茶' }]);
     }
     expect(auth).toBe(`Bearer ${KEY}`);
@@ -736,5 +736,15 @@ describe('設定の引き継ぎ', () => {
     s.setup = 'メモ';
     s.memory = { items: [{ id: 'm1', kind: 'knowledge', text: 't', knownBy: [], source: 'player' }], upTo: 0, version: 1 };
     expect(validateSave(s).ok).toBe(true);
+  });
+});
+
+describe('セリフの句点', () => {
+  it('句点のないセリフにだけ「。」を付ける', async () => {
+    const { withPeriod } = await import('./turn');
+    expect(withPeriod('これは、いい匂いだ')).toBe('これは、いい匂いだ。');
+    expect(withPeriod('いいのか?')).toBe('いいのか?');
+    expect(withPeriod('そうだな……')).toBe('そうだな……');
+    expect(withPeriod('いただく。')).toBe('いただく。');
   });
 });
