@@ -7,7 +7,7 @@ type Props = {
   onOpen: (id: string) => Promise<{ ok: boolean; error?: string }>;
   onExport: () => { filename: string; text: string };
   onDelete: (ids: string[]) => Promise<{ ok: boolean; error?: string; count?: number }>;
-  onNew: (blank?: boolean) => Promise<{ ok: boolean; error?: string; name?: string }>;
+  onNew: (blank?: boolean, carry?: boolean) => Promise<{ ok: boolean; error?: string; name?: string }>;
   onImport: (text: string) => Promise<{ ok: boolean; error?: string; name?: string }>;
   onBack: () => void;
 };
@@ -94,6 +94,18 @@ export function SaveManager({ saves, activeId, onOpen, onDelete, onNew, onExport
         </button>
       </div>
       <p className="note">港町の世界・人物・導入を使わず、自分の設定だけで遊ぶセーブです。今のセーブは消さず、別のセーブとして作ります。</p>
+      <div className="row">
+        <button
+          onClick={async () => {
+            const r = await onNew(true, true);
+            if (r.ok) show(`「${r.name}」を、いまの設定を引き継いで白紙で始めました。`);
+            else show(r.error ?? '始められませんでした', true);
+          }}
+        >
+          設定を引き継いで、白紙で始める
+        </button>
+      </div>
+      <p className="note">いまのセーブの「人物と主人公」「設定メモ」「自分で書いた記憶」をコピーします。会話・所持品・AIが作った記憶は、引き継ぎません。</p>
       <div className="row">
         <button
           className="link-btn"

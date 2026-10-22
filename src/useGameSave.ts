@@ -188,7 +188,7 @@ export function useGameSave() {
   );
 
   // 新しいセーブで、はじめから始める。今のセーブは消さずに残す
-  const createNew = useCallback(async (blank = false) => {
+  const createNew = useCallback(async (blank = false, carry = false) => {
     const store = storeRef.current;
     if (!store) return { ok: false as const, error: '保存できない状態のため、新しく始められません' };
     await writeNow();
@@ -196,6 +196,15 @@ export function useGameSave() {
     let name = '新しいセーブ';
     for (let n = 2; names.includes(name); n++) name = `新しいセーブ${n}`;
     const save = createInitialSave(newId(), Date.now(), name, blank);
+    if (blank && carry) {
+      // 設定だけ引き継ぐ(会話・状態・AIが作った記憶は引き継がない)。人物・主人公は、編集済みのときだけ
+      const cur = latest.current;
+      if (cur.setup) save.setup = cur.setup;
+      if (cur.characters) save.characters = cur.characters;
+      if (cur.playerInfo) save.player = cur.playerInfo;
+      const mine = cur.memory?.items.filter((i) => i.source === 'player') ?? [];
+      if (mine.length) save.memory = { items: mine, upTo: 0, version: 1 };
+    }
     await store.put(save);
     await store.setActiveId(save.id);
     adopt(save, '');

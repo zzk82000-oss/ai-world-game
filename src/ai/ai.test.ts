@@ -727,3 +727,14 @@ describe('白紙で始めるセーブ', () => {
     expect(JSON.stringify(s)).not.toContain('ルセナ');
   });
 });
+
+describe('設定の引き継ぎ', () => {
+  it('引き継ぎ用の保存データは、検証を通る', async () => {
+    const { createInitialSave } = await import('../game/initial');
+    const { validateSave } = await import('../game/save');
+    const s = createInitialSave('id2', 1, 'n', true);
+    s.setup = 'メモ';
+    s.memory = { items: [{ id: 'm1', kind: 'knowledge', text: 't', knownBy: [], source: 'player' }], upTo: 0, version: 1 };
+    expect(validateSave(s).ok).toBe(true);
+  });
+});
