@@ -759,3 +759,23 @@ describe('日時の変更', () => {
     expect(applyChange(st, { type: 'setDatetime', datetime: 'あ'.repeat(41) }).ok).toBe(false);
   });
 });
+
+describe('人物の画像', () => {
+  it('縮小済みの画像データだけを受け付け、AIへの指示には入れない', async () => {
+    const { isImageData, validateCharacter, emptyCharacter } = await import('../game/cast');
+    const { buildGameMessages } = await import('./narrator');
+    const { createState } = await import('../game/state');
+    const img = 'data:image/webp;base64,AAAA';
+    expect(isImageData(img)).toBe(true);
+    expect(isImageData('data:text/html;base64,AAAA')).toBe(false);
+    expect(isImageData('https://example.com/a.png')).toBe(false);
+    expect(isImageData('data:image/png;base64,' + 'A'.repeat(400_000))).toBe(false);
+    const c = { ...emptyCharacter(), name: 'エルザ', image: img };
+    expect(validateCharacter(c)).toBeNull();
+    expect(validateCharacter({ ...c, image: 'javascript:alert(1)' })).not.toBeNull();
+    const st = createState({ money: 1, items: [], place: 'a', datetime: 'b' });
+    const sys = buildGameMessages(st, [], 'こんにちは', 30, { characters: [c] })[0].content;
+    expect(sys).toContain('エルザ');
+    expect(sys).not.toContain('base64');
+  });
+});

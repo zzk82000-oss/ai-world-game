@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { DataEditor } from './DataEditor';
 import { AiSettings, GAME_MODELS } from './AiSettings';
 import { playTurn, settleChanges } from './ai/turn';
@@ -161,6 +161,8 @@ export default function App() {
   const [atBottom, setAtBottom] = useState(true);
   const logRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const [zoom, setZoom] = useState<{ name: string; src: string } | null>(null);
+  const imageOf = useMemo(() => Object.fromEntries((characters ?? []).filter((c) => c.image).map((c) => [c.name, c.image as string])), [characters]);
 
   // 入力欄は初期2行、改行に応じて約6行まで広げ、それ以降は欄内でスクロール
   useLayoutEffect(() => {
@@ -329,9 +331,15 @@ export default function App() {
                   </p>
                 ) : (
                   <div key={i} className="speech">
-                    <div className="avatar" aria-hidden="true">
-                      {b.speaker.slice(0, 1)}
-                    </div>
+                    {imageOf[b.speaker] ? (
+                      <button className="avatar" aria-label={`${b.speaker}の画像を大きく見る`} onClick={() => setZoom({ name: b.speaker, src: imageOf[b.speaker] })}>
+                        <img src={imageOf[b.speaker]} alt="" />
+                      </button>
+                    ) : (
+                      <div className="avatar" aria-hidden="true">
+                        {b.speaker.slice(0, 1)}
+                      </div>
+                    )}
                     <div className="speech-body">
                       <div className="speaker">{b.speaker}</div>
                       <div className="speech-bubble">
@@ -391,6 +399,13 @@ export default function App() {
           </button>
         )}
       </div>
+
+      {zoom && (
+        <div className="zoom" onClick={() => setZoom(null)} role="dialog" aria-label={`${zoom.name}の画像`}>
+          <img src={zoom.src} alt={zoom.name} />
+          <p>{zoom.name}(タップで閉じる)</p>
+        </div>
+      )}
 
       {menuOpen && <div className="backdrop" onClick={closeMenu} />}
       <aside className={`menu ${menuOpen ? 'open' : ''}`} aria-hidden={!menuOpen}>

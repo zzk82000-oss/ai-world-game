@@ -14,6 +14,7 @@ export type Npc = {
   values: string[];
   routine: string;
   secret?: string; // 本人だけが知っている秘密。プロフィールの一部として本人のAIにだけ渡す
+  image?: string; // 表示用の画像(data URL)。ゲームだけが使い、AIには送らない
 };
 
 export type HistoryTurn = { player: string; reply: string };

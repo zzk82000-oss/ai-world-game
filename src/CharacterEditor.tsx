@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
+import { fileToIcon } from './imageUtil';
 import type { Npc } from '../lab/src/types';
 import { ADULT_AGE, defaultCharacters, defaultPlayer, emptyCharacter, isAdultTarget, MAX_CHARACTERS, validateCharacter, validatePlayer, type Player } from './game/cast';
 
@@ -24,6 +25,7 @@ export function CharacterEditor({ characters, player, onCharacters, onPlayer, on
   const [editing, setEditing] = useState<{ index: number; draft: Npc; lists: { likes: string; dislikes: string; values: string }; age: string } | null>(null);
   const [editingPlayer, setEditingPlayer] = useState<Player | null>(null);
   const [error, setError] = useState('');
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const startEdit = (index: number) => {
     const n = index >= 0 ? list[index] : emptyCharacter();
@@ -99,6 +101,37 @@ export function CharacterEditor({ characters, player, onCharacters, onPlayer, on
           ← 人物の一覧に戻る(保存せずに)
         </button>
         <h2>{editing.index >= 0 ? '人物を編集' : '人物を追加'}</h2>
+        <div className="field">
+          画像(表示だけに使います。AIには送りません)
+          <div className="row">
+            {editing.draft.image ? <img className="icon-preview" src={editing.draft.image} alt="" /> : <span className="note">未設定</span>}
+            <button onClick={() => fileRef.current?.click()}>画像を選ぶ</button>
+            {editing.draft.image && (
+              <button
+                className="link-btn"
+                onClick={() => setEditing({ ...editing, draft: { ...editing.draft, image: undefined } })}
+              >
+                外す
+              </button>
+            )}
+          </div>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            hidden
+            onChange={async (e) => {
+              const f = e.target.files?.[0];
+              e.target.value = '';
+              if (!f) return;
+              const r = await fileToIcon(f);
+              if (r.ok) {
+                setError('');
+                setEditing((cur) => (cur ? { ...cur, draft: { ...cur.draft, image: r.dataUrl } } : cur));
+              } else setError(r.error);
+            }}
+          />
+        </div>
         <label className="field">
           名前(1〜16文字。空白・「」・* は使えません)
           <input value={editing.draft.name} onChange={(e) => set('name', e.target.value)} />

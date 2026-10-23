@@ -22,12 +22,17 @@ const isList = (x: unknown): x is string[] => Array.isArray(x) && x.length <= LI
 export const ADULT_AGE = 21;
 export const isAdultTarget = (age: unknown): boolean => Number.isInteger(age) && (age as number) >= ADULT_AGE;
 
+// 表示用の画像。端末で縮小した data URL だけを受け付ける(AIには送らない)
+export const IMAGE_MAX_CHARS = 400_000;
+export const isImageData = (x: unknown): x is string => typeof x === 'string' && x.length <= IMAGE_MAX_CHARS && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(x);
+
 export function validateCharacter(n: unknown): string | null {
   if (!isObj(n)) return '人物の設定が正しくありません';
   if (typeof n.name !== 'string' || !NAME_RE.test(n.name)) return '名前は、1〜16文字で、空白・「」・* を含めないでください';
   if (!Number.isInteger(n.age) || (n.age as number) < 1 || (n.age as number) > 999) return `${n.name}: 年齢は、1〜999の整数で入力してください`;
   if (!isStr(n.role, LIMIT.short)) return `${n.name}: 役割が長すぎます`;
   if (!isStr(n.personality, LIMIT.long) || !isStr(n.speech, LIMIT.long) || !isStr(n.routine, LIMIT.long)) return `${n.name}: 性格・話し方・日課が長すぎます(${LIMIT.long}文字まで)`;
+  if (n.image !== undefined && !isImageData(n.image)) return `${n.name}: 画像が正しくありません`;
   if (!isList(n.likes) || !isList(n.dislikes) || !isList(n.values)) return `${n.name}: 好き・苦手・価値観は、${LIMIT.list}個・各${LIMIT.item}文字までです`;
   return null;
 }
