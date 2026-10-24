@@ -1,6 +1,6 @@
 // 1日あたりのAI呼び出し回数の上限(意図しない課金・無制限の呼び出しを防ぐ)。
 // 数えるのは「送信しようとした回数」(失敗しても数える)。日付は日本時間で切り替える。
-export const DAILY_LIMIT = 200;
+export const DAILY_LIMIT = 400;
 const KEY = 'ai-game-usage';
 
 export type KV = { get(): string | null; set(v: string): void };

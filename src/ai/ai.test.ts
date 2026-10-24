@@ -112,11 +112,11 @@ describe('1日の呼び出し回数の上限', () => {
     expect(jstDate(Date.UTC(2026, 9, 21, 15, 0))).toBe('2026-10-22');
   });
 
-  it('壊れた記録は 0 から数え直す。既定の上限は200', () => {
+  it('壊れた記録は 0 から数え直す。既定の上限は400', () => {
     const kv = mem();
     kv.set('{broken');
     expect(readUsage(kv, t0).count).toBe(0);
-    expect(DAILY_LIMIT).toBe(200);
+    expect(DAILY_LIMIT).toBe(400);
   });
 });
 
